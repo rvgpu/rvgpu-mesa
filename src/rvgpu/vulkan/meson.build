@@ -39,7 +39,7 @@ rvgpu_flags = [
 ]
 
 libvulkan_rvgpu = shared_library(
-  'rvgpu',
+  'vulkan_rvgpu',
   [rvgpu_files, rvgpu_entrypoints],
   include_directories : [
     inc_gallium_aux,
