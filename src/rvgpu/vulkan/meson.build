@@ -33,7 +33,9 @@ rvgpu_entrypoints = custom_target(
 rvgpu_files = files(
     'rvgpu_device.c',
     'rvgpu_instance.c',
-    'rvgpu_physical_device.c'
+    'rvgpu_physical_device.c',
+    'rvgpu_perfcounter.c',
+    'rvgpu_wsi.c'
 )
 
 rvgpu_flags = [

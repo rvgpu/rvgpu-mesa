@@ -63,13 +63,11 @@ static const struct vk_instance_extension_table rvgpu_instance_extensions_suppor
    .EXT_debug_report = true,
    .EXT_debug_utils = true,
 
-#ifdef RADV_USE_WSI_PLATFORM
    .KHR_get_surface_capabilities2 = true,
    .KHR_surface = true,
    .KHR_surface_protected_capabilities = true,
    .EXT_surface_maintenance1 = true,
    .EXT_swapchain_colorspace = true,
-#endif
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
    .KHR_wayland_surface = true,
 #endif
@@ -140,4 +138,22 @@ rvgpu_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
 
    return VK_SUCCESS;
 
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+rvgpu_EnumerateInstanceExtensionProperties(const char *pLayerName, uint32_t *pPropertyCount,
+                                          VkExtensionProperties *pProperties)
+{
+   if (pLayerName)
+      return vk_error(NULL, VK_ERROR_LAYER_NOT_PRESENT);
+
+   return vk_enumerate_instance_extension_properties(&rvgpu_instance_extensions_supported,
+                                                     pPropertyCount, pProperties);
+}
+
+VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
+rvgpu_GetInstanceProcAddr(VkInstance _instance, const char *pName)
+{
+   RVGPU_FROM_HANDLE(vk_instance, instance, _instance);
+   return vk_instance_get_proc_addr(instance, &rvgpu_instance_entrypoints, pName);
 }

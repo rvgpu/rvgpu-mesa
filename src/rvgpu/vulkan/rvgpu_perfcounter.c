@@ -25,6 +25,8 @@
  * IN THE SOFTWARE.
  */
 
+#include "util/u_memory.h"
+
 #include "rvgpu_perfcounter.h"
 
 void ac_destroy_perfcounters(struct ac_perfcounters *pc)

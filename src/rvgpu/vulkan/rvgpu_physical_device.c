@@ -69,7 +69,7 @@ rvgpu_physical_device_destroy(struct vk_physical_device *vk_device)
 {
    struct rvgpu_physical_device *device = container_of(vk_device, struct rvgpu_physical_device, vk);
 
-   radv_finish_wsi(device);
+   rvgpu_finish_wsi(device);
    ac_destroy_perfcounters(&device->ac_perfcounters);
    device->ws->destroy(device->ws);
    // disk_cache_destroy(device->vk.disk_cache);

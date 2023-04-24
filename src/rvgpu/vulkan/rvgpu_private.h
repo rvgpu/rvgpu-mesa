@@ -25,12 +25,11 @@
  * IN THE SOFTWARE.
  */
 
-#include "rvgpu_wsi.h"
-#include "rvgpu_physical_device.h"
+#ifndef __RVGPU_PRIVATE_H__
+#define __RVGPU_PRIVATE_H__
 
-void
-rvgpu_finish_wsi(struct rvgpu_physical_device *physical_device)
-{
-   physical_device->vk.wsi_device = NULL;
-   wsi_device_finish(&physical_device->wsi_device, &physical_device->instance->vk.alloc);
-}
+#include "vk_object.h"
+
+#define RVGPU_FROM_HANDLE(__rvgpu_type, __name, __handle) VK_FROM_HANDLE(__rvgpu_type, __name, __handle)
+
+#endif // __RVGPU_PRIVATE_H__

@@ -30,6 +30,6 @@
 
 struct rvgpu_physical_device;
 
-void radv_finish_wsi(struct rvgpu_physical_device *physical_device);
+void rvgpu_finish_wsi(struct rvgpu_physical_device *physical_device);
 
 #endif // __RVGPU_WSI_H__

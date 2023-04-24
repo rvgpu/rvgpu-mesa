@@ -137,12 +137,12 @@ struct radeon_winsys_bo {
    enum radeon_bo_domain initial_domain;
 };
 
-struct radv_winsys_bo_list {
+struct rvgpu_winsys_bo_list {
    struct radeon_winsys_bo **bos;
    unsigned count;
 };
 
-struct radv_winsys_submit_info {
+struct rvgpu_winsys_submit_info {
    enum amd_ip_type ip_type;
    int queue_index;
    unsigned cs_count;
@@ -224,7 +224,7 @@ struct radeon_winsys {
 
    int (*ctx_set_pstate)(struct radeon_winsys_ctx *ctx, uint32_t pstate);
 
-   enum radv_reset_status (*ctx_query_reset_status)(struct radeon_winsys_ctx *rwctx);
+   enum rvgpu_reset_status (*ctx_query_reset_status)(struct radeon_winsys_ctx *rwctx);
 
    enum radeon_bo_domain (*cs_domain)(const struct radeon_winsys *ws);
 
@@ -244,7 +244,7 @@ struct radeon_winsys {
    void (*cs_grow)(struct radeon_cmdbuf *cs, size_t min_size);
 
    VkResult (*cs_submit)(struct radeon_winsys_ctx *ctx,
-                         const struct radv_winsys_submit_info *submit, uint32_t wait_count,
+                         const struct rvgpu_winsys_submit_info *submit, uint32_t wait_count,
                          const struct vk_sync_wait *waits, uint32_t signal_count,
                          const struct vk_sync_signal *signals);
 

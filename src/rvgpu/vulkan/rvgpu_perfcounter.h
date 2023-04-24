@@ -28,6 +28,8 @@
 #ifndef __RVGPU_PERFCOUNTER_H__
 #define __RVGPU_PERFCOUNTER_H__
 
+#include <stdbool.h>
+
 enum ac_pc_gpu_block {
    CPF     = 0x0,
    IA      = 0x1,

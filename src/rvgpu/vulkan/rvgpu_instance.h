@@ -30,6 +30,7 @@
 
 #include <vulkan/vulkan.h>
 
+#include "rvgpu_private.h"
 #include "rvgpu_entrypoints.h"
 #include "rvgpu_physical_device.h"
 

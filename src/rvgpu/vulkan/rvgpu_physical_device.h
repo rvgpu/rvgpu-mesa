@@ -36,18 +36,19 @@
 #include "vk_physical_device.h"
 
 #include "rvgpu_winsys.h"
+#include "rvgpu_instance.h"
 #include "rvgpu_perfcounter.h"
 
 /* queue types */
 enum rvgpu_queue_family {
-   RADV_QUEUE_GENERAL,
-   RADV_QUEUE_COMPUTE,
-   RADV_QUEUE_TRANSFER,
-   RADV_QUEUE_VIDEO_DEC,
-   RADV_QUEUE_VIDEO_ENC,
-   RADV_MAX_QUEUE_FAMILIES,
-   RADV_QUEUE_FOREIGN = RADV_MAX_QUEUE_FAMILIES,
-   RADV_QUEUE_IGNORED,
+   RVGPU_QUEUE_GENERAL,
+   RVGPU_QUEUE_COMPUTE,
+   RVGPU_QUEUE_TRANSFER,
+   RVGPU_QUEUE_VIDEO_DEC,
+   RVGPU_QUEUE_VIDEO_ENC,
+   RVGPU_MAX_QUEUE_FAMILIES,
+   RVGPU_QUEUE_FOREIGN = RVGPU_MAX_QUEUE_FAMILIES,
+   RVGPU_QUEUE_IGNORED,
 };
 
 struct rvgpu_binning_settings {
@@ -123,7 +124,7 @@ struct rvgpu_physical_device {
 
    nir_shader_compiler_options nir_options[MESA_VULKAN_SHADER_STAGES];
 
-   enum rvgpu_queue_family vk_queue_to_rvgpu[RADV_MAX_QUEUE_FAMILIES];
+   enum rvgpu_queue_family vk_queue_to_rvgpu[RVGPU_MAX_QUEUE_FAMILIES];
    uint32_t num_queues;
 
    uint32_t gs_table_depth;
