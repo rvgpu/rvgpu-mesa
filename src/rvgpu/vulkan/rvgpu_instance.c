@@ -139,6 +139,23 @@ rvgpu_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
    return VK_SUCCESS;
 }
 
+VKAPI_ATTR void VKAPI_CALL
+rvgpu_DestroyInstance(VkInstance _instance, const VkAllocationCallbacks *pAllocator)
+{
+   RVGPU_FROM_HANDLE(rvgpu_instance, instance, _instance);
+
+   if (!instance)
+      return;
+
+   // VG(VALGRIND_DESTROY_MEMPOOL(instance));
+
+   // driDestroyOptionCache(&instance->dri_options);
+   // driDestroyOptionInfo(&instance->available_dri_options);
+
+   vk_instance_finish(&instance->vk);
+   vk_free(&instance->vk.alloc, instance);
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 rvgpu_EnumerateInstanceLayerProperties(uint32_t *pPropertyCount, VkLayerProperties *pProperties)
 {
