@@ -157,3 +157,16 @@ rvgpu_GetInstanceProcAddr(VkInstance _instance, const char *pName)
    RVGPU_FROM_HANDLE(vk_instance, instance, _instance);
    return vk_instance_get_proc_addr(instance, &rvgpu_instance_entrypoints, pName);
 }
+
+
+PUBLIC VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
+vk_icdGetInstanceProcAddr(VkInstance instance,
+                          const char *pName);
+
+
+PUBLIC VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
+vk_icdGetInstanceProcAddr(VkInstance instance,
+                          const char *pName)
+{
+   return rvgpu_GetInstanceProcAddr(instance, pName);
+}
