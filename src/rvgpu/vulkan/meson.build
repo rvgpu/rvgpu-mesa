@@ -31,7 +31,9 @@ rvgpu_entrypoints = custom_target(
 )
 
 rvgpu_files = files(
-    'rvgpu_device.c'
+    'rvgpu_device.c',
+    'rvgpu_instance.c',
+    'rvgpu_physical_device.c'
 )
 
 rvgpu_flags = [
@@ -52,8 +54,11 @@ libvulkan_rvgpu = shared_library(
   link_with : [
   ],
   dependencies : [
+    dep_libdrm,
     idep_nir,
     idep_vulkan_util,
+    idep_vulkan_runtime,
+    idep_vulkan_wsi,
   ],
   c_args : rvgpu_flags,
   link_args : [
