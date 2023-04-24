@@ -137,7 +137,18 @@ rvgpu_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
    *pInstance = rvgpu_instance_to_handle(instance);
 
    return VK_SUCCESS;
+}
 
+VKAPI_ATTR VkResult VKAPI_CALL
+rvgpu_EnumerateInstanceLayerProperties(uint32_t *pPropertyCount, VkLayerProperties *pProperties)
+{
+   if (pProperties == NULL) {
+      *pPropertyCount = 0;
+      return VK_SUCCESS;
+   }
+
+   /* None supported at this time */
+   return vk_error(NULL, VK_ERROR_LAYER_NOT_PRESENT);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
