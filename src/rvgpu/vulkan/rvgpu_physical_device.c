@@ -338,3 +338,21 @@ rvgpu_physical_device_destroy(struct vk_physical_device *vk_device)
    vk_physical_device_finish(&device->vk);
    vk_free(&device->instance->vk.alloc, device);
 }
+
+VKAPI_ATTR void VKAPI_CALL
+rvgpu_GetPhysicalDeviceQueueFamilyProperties2(VkPhysicalDevice physicalDevice, uint32_t *pCount,
+                                              VkQueueFamilyProperties2 *pQueueFamilyProperties)
+{
+}
+
+VKAPI_ATTR void VKAPI_CALL
+rvgpu_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
+                                   VkPhysicalDeviceProperties2 *pProperties)
+{
+}
+
+VKAPI_ATTR void VKAPI_CALL
+rvgpu_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
+                                 VkPhysicalDeviceFeatures2 *pFeatures)
+{
+}
