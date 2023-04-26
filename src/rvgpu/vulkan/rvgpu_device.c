@@ -25,18 +25,68 @@
  * SOFTWARE.
  */
 
-#include <assert.h>
-#include <fcntl.h>
-#include <inttypes.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <errno.h>
+#include <unistd.h>
+#include <xf86drm.h>
+
 #include <vulkan/vulkan.h>
+
+#include "rvgpu_device.h"
 
 #define DEF_DRIVER(str_name)                        \
    {                                                \
       .name = str_name, .len = sizeof(str_name) - 1 \
    }
 
+
+int rvgpu_device_initialize(int fd, 
+                            uint32_t *major_version, 
+                            uint32_t *minor_version, 
+                            rvgpu_device_handle *device_handle)
+{
+   struct rvgpu_device *dev;
+   drmVersionPtr version;
+
+   int r;
+
+   *device_handle = NULL;
+
+   dev = calloc(1, sizeof(struct rvgpu_device));
+   if (!dev) {
+      fprintf(stderr, "%s: calloc failed\n", __func__);
+      return -ENOMEM;
+   }
+
+   dev->fd = drmOpen("rvgsim", NULL);
+
+   version = drmGetVersion(fd);
+   if (version->version_major != 3) {
+      fprintf(stderr, "%s: DRM version is %d.%d.%d but this driver is "
+                      "only compatible with 3.x.x.\n",
+              __func__,
+              version->version_major,
+              version->version_minor,
+              version->version_patchlevel);
+      drmFreeVersion(version);
+      r = -EBADF;
+      goto cleanup;
+   }
+
+   dev->flink_fd = dev->fd;
+   dev->major_version = version->version_major;
+   dev->minor_version = version->version_minor;
+   drmFreeVersion(version);
+
+   *major_version = dev->major_version;
+   *minor_version = dev->minor_version;
+
+   return 0;
+
+cleanup:
+   if (dev->fd >= 0)
+      close(dev->fd);
+   free(dev);
+   return r;
+}

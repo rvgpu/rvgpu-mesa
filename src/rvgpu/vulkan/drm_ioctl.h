@@ -1,10 +1,6 @@
 /*
  * Copyright © 2023 Sietium Semiconductor.
  *
- * based in part on radv driver which is:
- * Copyright © 2016 Red Hat.
- * Copyright © 2016 Bas Nieuwenhuizen
- *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
  * to deal in the Software without restriction, including without limitation
@@ -25,10 +21,24 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __RVGPU_CONSTANTS_H__
-#define __RVGPU_CONSTANTS_H__
+#ifndef __drm_ioctl.h_H__
+#define __drm_ioctl.h_H__
 
-// pci vendor id
-#define SIETIUM_VENDOR_ID 0x16c3
+#include <xf86drm.h>
 
-#endif //__RVGPU_CONSTANTS_H__
+#define RVGPU_DRM_IOC_W(cmdIndex, size) DRM_IOC( DRM_IOC_WRITE, DRM_IOCTL_BASE, DRM_COMMAND_BASE + cmdIndex, size);
+
+#define AMDGPU_INFO_ACCEL_WORKING   
+
+/* Input structure for the INFO ioctl */
+struct drm_amdgpu_info {
+    /* Where the return value will be stored */
+    __u64 return_pointer;
+    /* The size of the return value. Just like "size" in "snprintf",
+     * it limits how many bytes the kernel can write. */
+    __u32 return_size;
+    /* The query request id. */
+    __u32 query;
+};
+
+#endif // __drm_ioctl_H__

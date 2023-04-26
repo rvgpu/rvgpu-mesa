@@ -62,7 +62,7 @@ struct rvgpu_physical_device {
 
    struct rvgpu_instance *instance;
 
-   struct radeon_winsys *ws;
+   struct rvgpu_winsys *ws;
    struct radeon_info rad_info;
    char name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
    char marketing_name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
