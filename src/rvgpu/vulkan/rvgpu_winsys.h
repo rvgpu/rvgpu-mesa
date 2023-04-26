@@ -30,6 +30,7 @@
 
 #include "vk_sync.h"
 
+#include "rvgpu_device.h"
 #include "rvgpu_gpuinfo.h"
 #include "rvgpu_surface.h"
 
@@ -172,7 +173,9 @@ enum radeon_value_id {
    RADEON_CURRENT_MCLK,
 };
 
-struct rvgpu_winsys {
+struct rvgpu_winsys;
+
+struct rvgpu_winsys_ops {
    void (*destroy)(struct rvgpu_winsys *ws);
 
    void (*query_info)(struct rvgpu_winsys *ws, struct radeon_info *info);
@@ -269,6 +272,13 @@ struct rvgpu_winsys {
    const struct vk_sync_type *const *(*get_sync_types)(struct rvgpu_winsys *ws);
 };
 
+struct rvgpu_winsys {
+   struct rvgpu_winsys_ops *ops;
+
+   rvgpu_device_handle dev;
+};
+
+void rvgpu_winsys_destroy(struct rvgpu_winsys *ws);
 struct rvgpu_winsys * rvgpu_winsys_create(int fd, uint64_t debug_flags, uint64_t perftest_flags);
 
 #endif // __RVGPU_WINSYS_H__

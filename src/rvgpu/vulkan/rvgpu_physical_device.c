@@ -328,7 +328,7 @@ rvgpu_physical_device_destroy(struct vk_physical_device *vk_device)
 
    rvgpu_finish_wsi(device);
    ac_destroy_perfcounters(&device->ac_perfcounters);
-   device->ws->destroy(device->ws);
+   rvgpu_winsys_destroy(device->ws);
    // disk_cache_destroy(device->vk.disk_cache);
    if (device->local_fd != -1)
       close(device->local_fd);
