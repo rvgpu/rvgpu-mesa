@@ -49,8 +49,6 @@ int rvgpu_device_initialize(int fd,
    struct rvgpu_device *dev;
    drmVersionPtr version;
 
-   int r;
-
    *device_handle = NULL;
 
    dev = calloc(1, sizeof(struct rvgpu_device));
@@ -62,17 +60,6 @@ int rvgpu_device_initialize(int fd,
    dev->fd = drmOpen("rvgsim", NULL);
 
    version = drmGetVersion(fd);
-   if (version->version_major != 3) {
-      fprintf(stderr, "%s: DRM version is %d.%d.%d but this driver is "
-                      "only compatible with 3.x.x.\n",
-              __func__,
-              version->version_major,
-              version->version_minor,
-              version->version_patchlevel);
-      drmFreeVersion(version);
-      r = -EBADF;
-      goto cleanup;
-   }
 
    dev->flink_fd = dev->fd;
    dev->major_version = version->version_major;
@@ -83,10 +70,4 @@ int rvgpu_device_initialize(int fd,
    *minor_version = dev->minor_version;
 
    return 0;
-
-cleanup:
-   if (dev->fd >= 0)
-      close(dev->fd);
-   free(dev);
-   return r;
 }
