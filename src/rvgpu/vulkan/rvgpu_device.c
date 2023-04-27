@@ -57,8 +57,6 @@ int rvgpu_device_initialize(int fd,
       return -ENOMEM;
    }
 
-   dev->fd = drmOpen("rvgsim", NULL);
-
    version = drmGetVersion(fd);
 
    dev->flink_fd = dev->fd;
