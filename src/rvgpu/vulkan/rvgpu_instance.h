@@ -30,7 +30,6 @@
 
 #include <vulkan/vulkan.h>
 
-#include "rvgpu_private.h"
 #include "rvgpu_entrypoints.h"
 #include "rvgpu_physical_device.h"
 
@@ -61,8 +60,6 @@ struct rvgpu_instance {
    bool tex_non_uniform;
    char *app_layer;
 };
-
-VK_DEFINE_HANDLE_CASTS(rvgpu_instance, vk.base, VkInstance, VK_OBJECT_TYPE_INSTANCE)
 
 const char *rvgpu_get_debug_option_name(int id);
 

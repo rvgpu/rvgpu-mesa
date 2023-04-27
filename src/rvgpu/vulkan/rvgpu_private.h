@@ -30,6 +30,12 @@
 
 #include "vk_object.h"
 
+#include "rvgpu_instance.h"
+#include "rvgpu_physical_device.h"
+
 #define RVGPU_FROM_HANDLE(__rvgpu_type, __name, __handle) VK_FROM_HANDLE(__rvgpu_type, __name, __handle)
+
+VK_DEFINE_HANDLE_CASTS(rvgpu_instance, vk.base, VkInstance, VK_OBJECT_TYPE_INSTANCE)
+VK_DEFINE_HANDLE_CASTS(rvgpu_physical_device, vk.base, VkPhysicalDevice, VK_OBJECT_TYPE_PHYSICAL_DEVICE)
 
 #endif // __RVGPU_PRIVATE_H__

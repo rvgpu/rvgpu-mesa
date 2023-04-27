@@ -34,7 +34,6 @@
 #include "rvgpu_instance.h"
 #include "rvgpu_winsys.h"
 #include "rvgpu_private.h"
-#include "rvgpu_physical_device.h"
 
 static VkResult
 rvgpu_physical_device_try_create(struct rvgpu_instance *instance, drmDevicePtr drm_device,

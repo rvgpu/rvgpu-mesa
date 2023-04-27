@@ -27,11 +27,11 @@
 
 #include "util/u_debug.h"
 
-#include "rvgpu_instance.h"
-
 #include "vk_log.h"
 #include "vk_alloc.h"
 #include "vk_instance.h"
+
+#include "rvgpu_private.h"
 
 static const struct debug_control rvgpu_debug_options[] = {
    {NULL, 0}
