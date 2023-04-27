@@ -148,6 +148,8 @@ struct rvgpu_physical_device {
    } vid_dec_reg;
 };
 
+VK_DEFINE_HANDLE_CASTS(rvgpu_physical_device, vk.base, VkPhysicalDevice, VK_OBJECT_TYPE_PHYSICAL_DEVICE)
+
 VkResult create_null_physical_device(struct vk_instance *vk_instance);
 VkResult create_drm_physical_device(struct vk_instance *vk_instance, struct _drmDevice *device, struct vk_physical_device **out);
 void rvgpu_physical_device_destroy(struct vk_physical_device *vk_device);

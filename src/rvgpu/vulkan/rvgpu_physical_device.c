@@ -33,6 +33,7 @@
 #include "rvgpu_constants.h"
 #include "rvgpu_instance.h"
 #include "rvgpu_winsys.h"
+#include "rvgpu_private.h"
 #include "rvgpu_physical_device.h"
 
 static VkResult
@@ -146,10 +147,55 @@ rvgpu_physical_device_destroy(struct vk_physical_device *vk_device)
    vk_free(&device->instance->vk.alloc, device);
 }
 
+static void
+rvgpu_get_physical_device_queue_family_properties(struct rvgpu_physical_device *pdevice,
+                                                  uint32_t *pCount,
+                                                  VkQueueFamilyProperties **pQueueFamilyProperties)
+{
+   int num_queue_families = 1;
+   int idx;
+
+   if (pQueueFamilyProperties == NULL) {
+      *pCount = num_queue_families;
+      return;
+   }
+
+   if (!*pCount) {
+      return;
+   }
+
+   idx = 0;
+   if (*pCount >= 1) {
+      *pQueueFamilyProperties[idx] = (VkQueueFamilyProperties){
+         .queueFlags = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT |
+                       VK_QUEUE_SPARSE_BINDING_BIT,
+         .queueCount = 1,
+         .timestampValidBits = 64,
+         .minImageTransferGranularity = (VkExtent3D){1, 1, 1},
+      };
+      idx++;
+   }
+
+   *pCount = idx;
+}
+
 VKAPI_ATTR void VKAPI_CALL
 rvgpu_GetPhysicalDeviceQueueFamilyProperties2(VkPhysicalDevice physicalDevice, uint32_t *pCount,
                                               VkQueueFamilyProperties2 *pQueueFamilyProperties)
 {
+   RVGPU_FROM_HANDLE(rvgpu_physical_device, pdevice, physicalDevice);
+   if (!pQueueFamilyProperties) {
+      rvgpu_get_physical_device_queue_family_properties(pdevice, pCount, NULL);  
+      return ;
+   }
+
+   VkQueueFamilyProperties *properties[] = {
+      &pQueueFamilyProperties[0].queueFamilyProperties,
+      &pQueueFamilyProperties[1].queueFamilyProperties,
+      &pQueueFamilyProperties[2].queueFamilyProperties,
+   };
+
+   rvgpu_get_physical_device_queue_family_properties(pdevice, pCount, properties);
 }
 
 VKAPI_ATTR void VKAPI_CALL
