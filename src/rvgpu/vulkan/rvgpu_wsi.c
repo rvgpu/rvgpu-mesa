@@ -25,12 +25,38 @@
  * IN THE SOFTWARE.
  */
 
-#include "rvgpu_wsi.h"
-#include "rvgpu_physical_device.h"
+#include "rvgpu_private.h"
+
+static VKAPI_PTR PFN_vkVoidFunction
+rvgpu_wsi_proc_addr(VkPhysicalDevice physicalDevice, const char *pName)
+{
+   VK_FROM_HANDLE(rvgpu_physical_device, pdevice, physicalDevice);
+   return vk_instance_get_proc_addr_unchecked(&pdevice->instance->vk, pName);
+}
 
 void
 rvgpu_finish_wsi(struct rvgpu_physical_device *physical_device)
 {
    physical_device->vk.wsi_device = NULL;
    wsi_device_finish(&physical_device->wsi_device, &physical_device->instance->vk.alloc);
+}
+
+VkResult
+rvgpu_wsi_init(struct rvgpu_physical_device *physical_device)
+{
+   VkResult result;
+
+   result = wsi_device_init(
+      &physical_device->wsi_device,
+      rvgpu_physical_device_to_handle(physical_device), rvgpu_wsi_proc_addr,
+      &physical_device->instance->vk.alloc, physical_device->master_fd, NULL,
+      &(struct wsi_device_options){.sw_device = false});
+   if (result != VK_SUCCESS)
+      return result;
+
+   physical_device->wsi_device.supports_modifiers = false;
+
+   physical_device->vk.wsi_device = &physical_device->wsi_device;
+
+   return VK_SUCCESS;
 }

@@ -102,6 +102,12 @@ rvgpu_physical_device_try_create(struct rvgpu_instance *instance, drmDevicePtr d
       goto fail_base;
    }
 
+   result = rvgpu_wsi_init(device);
+   if (result != VK_SUCCESS) {
+      vk_error(instance, result);
+      goto fail_base;
+   }
+
    *device_out = device;
    return VK_SUCCESS;
 

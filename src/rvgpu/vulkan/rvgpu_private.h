@@ -32,6 +32,7 @@
 
 #include "rvgpu_instance.h"
 #include "rvgpu_physical_device.h"
+#include "rvgpu_wsi.h"
 
 #define RVGPU_FROM_HANDLE(__rvgpu_type, __name, __handle) VK_FROM_HANDLE(__rvgpu_type, __name, __handle)
 

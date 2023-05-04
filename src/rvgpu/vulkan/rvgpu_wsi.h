@@ -32,4 +32,6 @@ struct rvgpu_physical_device;
 
 void rvgpu_finish_wsi(struct rvgpu_physical_device *physical_device);
 
+VkResult rvgpu_wsi_init(struct rvgpu_physical_device *physical_device);
+
 #endif // __RVGPU_WSI_H__
