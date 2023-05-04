@@ -102,6 +102,8 @@ rvgpu_physical_device_try_create(struct rvgpu_instance *instance, drmDevicePtr d
       goto fail_base;
    }
 
+   device->vk.supported_sync_types = device->ws->ops.get_sync_types(device->ws);
+
    result = rvgpu_wsi_init(device);
    if (result != VK_SUCCESS) {
       vk_error(instance, result);

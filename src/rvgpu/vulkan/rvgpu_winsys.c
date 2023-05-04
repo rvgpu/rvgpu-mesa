@@ -27,12 +27,20 @@
 
 #include <stdlib.h>
 
+#include "vk_drm_syncobj.h"
+
 #include "rvgpu_winsys.h"
 #include "rvgpu_device.h"
 
+static const struct vk_sync_type *const *
+rvgpu_winsys_get_sync_types(struct rvgpu_winsys *ws)
+{
+   return ws->sync_types;
+}
+
 void rvgpu_winsys_destroy(struct rvgpu_winsys *ws)
 {
-    ws->ops->destroy(ws);
+    ws->ops.destroy(ws);
 }
 
 struct rvgpu_winsys *
@@ -53,6 +61,21 @@ rvgpu_winsys_create(int fd, uint64_t debug_flags, uint64_t perftest_flags)
       goto fail;
 
    ws->dev = dev;
+
+   int num_sync_types = 0;
+   
+   ws->syncobj_sync_type = vk_drm_syncobj_get_type(dev->fd);
+   if (ws->syncobj_sync_type.features) {
+      ws->sync_types[num_sync_types++] = &ws->syncobj_sync_type;
+      if (!(ws->syncobj_sync_type.features & VK_SYNC_FEATURE_TIMELINE)) {
+         ws->emulated_timeline_sync_type = vk_sync_timeline_get_type(&ws->syncobj_sync_type);
+         ws->sync_types[num_sync_types++] = &ws->emulated_timeline_sync_type.sync;
+      }
+   }
+   
+   ws->sync_types[num_sync_types++] = NULL;
+
+   ws->ops.get_sync_types = rvgpu_winsys_get_sync_types;
 
    return ws;
 

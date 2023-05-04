@@ -29,6 +29,7 @@
 #define __RVGPU_WINSYS_H__
 
 #include "vk_sync.h"
+#include "vk_sync_timeline.h"
 
 #include "rvgpu_device.h"
 #include "rvgpu_gpuinfo.h"
@@ -273,9 +274,13 @@ struct rvgpu_winsys_ops {
 };
 
 struct rvgpu_winsys {
-   struct rvgpu_winsys_ops *ops;
+   struct rvgpu_winsys_ops ops;
 
    rvgpu_device_handle dev;
+
+   const struct vk_sync_type *sync_types[3];
+   struct vk_sync_type syncobj_sync_type;
+   struct vk_sync_timeline_type emulated_timeline_sync_type;
 };
 
 void rvgpu_winsys_destroy(struct rvgpu_winsys *ws);

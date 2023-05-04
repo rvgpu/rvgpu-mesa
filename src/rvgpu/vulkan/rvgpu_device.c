@@ -67,5 +67,6 @@ int rvgpu_device_initialize(int fd,
    *major_version = dev->major_version;
    *minor_version = dev->minor_version;
 
+   *device_handle = dev;
    return 0;
 }
