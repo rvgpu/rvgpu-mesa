@@ -214,3 +214,9 @@ rvgpu_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
                                  VkPhysicalDeviceFeatures2 *pFeatures)
 {
 }
+
+void
+rvgpu_GetPhysicalDeviceMemoryProperties2(VkPhysicalDevice physicalDevice, 
+                                         VkPhysicalDeviceMemoryProperties2 *pMemoryProperties)
+{
+}
