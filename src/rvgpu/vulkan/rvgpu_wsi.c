@@ -49,8 +49,8 @@ rvgpu_wsi_init(struct rvgpu_physical_device *physical_device)
    result = wsi_device_init(
       &physical_device->wsi_device,
       rvgpu_physical_device_to_handle(physical_device), rvgpu_wsi_proc_addr,
-      &physical_device->instance->vk.alloc, physical_device->master_fd, NULL,
-      &(struct wsi_device_options){.sw_device = false});
+      &physical_device->instance->vk.alloc, -1, NULL,
+      &(struct wsi_device_options){.sw_device = true});
    if (result != VK_SUCCESS)
       return result;
 
