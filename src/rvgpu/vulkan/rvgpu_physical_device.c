@@ -35,6 +35,15 @@
 #include "rvgpu_winsys.h"
 #include "rvgpu_private.h"
 
+static void
+rvgpu_physical_device_get_supported_extensions(const struct rvgpu_physical_device *device,
+                                               struct vk_device_extension_table *ext)
+{
+   *ext = (struct vk_device_extension_table) {
+      .KHR_swapchain = true,
+   };
+}
+
 static VkResult
 rvgpu_physical_device_try_create(struct rvgpu_instance *instance, drmDevicePtr drm_device,
                                 struct rvgpu_physical_device **device_out)
@@ -103,6 +112,8 @@ rvgpu_physical_device_try_create(struct rvgpu_instance *instance, drmDevicePtr d
    }
 
    device->vk.supported_sync_types = device->ws->ops.get_sync_types(device->ws);
+
+   rvgpu_physical_device_get_supported_extensions(device, &device->vk.supported_extensions);
 
    result = rvgpu_wsi_init(device);
    if (result != VK_SUCCESS) {
