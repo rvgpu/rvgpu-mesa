@@ -30,12 +30,16 @@
 
 #include "vk_object.h"
 
+#include "rvgpu_device.h"
 #include "rvgpu_instance.h"
 #include "rvgpu_physical_device.h"
 #include "rvgpu_wsi.h"
 
+extern const struct vk_command_buffer_ops rvgpu_cmd_buffer_ops;
+
 #define RVGPU_FROM_HANDLE(__rvgpu_type, __name, __handle) VK_FROM_HANDLE(__rvgpu_type, __name, __handle)
 
+VK_DEFINE_HANDLE_CASTS(rvgpu_device, vk.base, VkDevice, VK_OBJECT_TYPE_DEVICE)
 VK_DEFINE_HANDLE_CASTS(rvgpu_instance, vk.base, VkInstance, VK_OBJECT_TYPE_INSTANCE)
 VK_DEFINE_HANDLE_CASTS(rvgpu_physical_device, vk.base, VkPhysicalDevice, VK_OBJECT_TYPE_PHYSICAL_DEVICE)
 

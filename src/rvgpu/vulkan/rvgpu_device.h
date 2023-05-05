@@ -28,6 +28,8 @@
 #ifndef __RVGPU_DEVICE_H__
 #define __RVGPU_DEVICE_H__
 
+#include "vk_device.h"
+
 /**
  * Describe GPU h/w info needed for UMD correct initialization
  */ 
@@ -95,25 +97,19 @@ struct rvgpu_gpu_info {
 };
 
 struct rvgpu_device {
-    struct rvgpu_device *next;
-    int fd;
-    int flink_fd;
-    unsigned major_version;
-    unsigned minor_version;
+   struct vk_device vk;
 
-    char *marketing_name;
-    struct rvgpu_gpu_info info;
-#if 0
-    /** The VA manager for the lower virtual address space */
-    struct rvgpu_bo_va_mgr vamgr;
-    /** The VA manager for the 32bit address space */
-    struct rvgpu_bo_va_mgr vamgr_32;
-    /** The VA manager for the high virtual address space */
-    struct rvgpu_bo_va_mgr vamgr_high;
-    /** The VA manager for the 32bit high address space */
-    struct rvgpu_bo_va_mgr vamgr_high_32;
-#endif
+   struct rvgpu_instance *instance;
+   struct rvgpu_winsys *ws;
+   struct rvgpu_physical_device *physical_device;
+
+   int fd;
 };
+
+enum rvgpu_dispatch_table {
+   RVGPU_DEVICE_DISPATCH_TABLE,
+   RVGPU_DISPATCH_TABLE_COUNT,
+}; 
 
 typedef struct rvgpu_device *rvgpu_device_handle;
 
