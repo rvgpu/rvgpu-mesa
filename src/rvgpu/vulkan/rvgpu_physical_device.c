@@ -195,6 +195,8 @@ rvgpu_get_physical_device_queue_family_properties(struct rvgpu_physical_device *
    }
 
    *pCount = idx;
+
+   RVGPU_UNUSED_VARIABLE(pdevice);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -222,10 +224,74 @@ rvgpu_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
 {
 }
 
+
+VKAPI_ATTR void VKAPI_CALL
+rvgpu_GetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice, VkPhysicalDeviceFeatures *pFeatures)
+{
+   // RVGPU_FROM_HANDLE(rvgpu_physical_device, pdevice, physicalDevice);
+   memset(pFeatures, 0, sizeof(*pFeatures));
+
+   *pFeatures = (VkPhysicalDeviceFeatures){
+      .robustBufferAccess = true,
+      .fullDrawIndexUint32 = true,
+      .imageCubeArray = true,
+      .independentBlend = true,
+      .geometryShader = true,
+      .tessellationShader = true,
+      .sampleRateShading = true,
+      .dualSrcBlend = true,
+      .logicOp = true,
+      .multiDrawIndirect = true,
+      .drawIndirectFirstInstance = true,
+      .depthClamp = true,
+      .depthBiasClamp = true,
+      .fillModeNonSolid = true,
+      .depthBounds = true,
+      .wideLines = true,
+      .largePoints = true,
+      .alphaToOne = false,
+      .multiViewport = true,
+      .samplerAnisotropy = true,
+      .textureCompressionETC2 = false,
+      .textureCompressionASTC_LDR = false,
+      .textureCompressionBC = true,
+      .occlusionQueryPrecise = true,
+      .pipelineStatisticsQuery = true,
+      .vertexPipelineStoresAndAtomics = true,
+      .fragmentStoresAndAtomics = true,
+      .shaderTessellationAndGeometryPointSize = true,
+      .shaderImageGatherExtended = true,
+      .shaderStorageImageExtendedFormats = true,
+      .shaderStorageImageMultisample = true,
+      .shaderUniformBufferArrayDynamicIndexing = true,
+      .shaderSampledImageArrayDynamicIndexing = true,
+      .shaderStorageBufferArrayDynamicIndexing = true,
+      .shaderStorageImageArrayDynamicIndexing = true,
+      .shaderStorageImageReadWithoutFormat = true,
+      .shaderStorageImageWriteWithoutFormat = true,
+      .shaderClipDistance = true,
+      .shaderCullDistance = true,
+      .shaderFloat64 = true,
+      .shaderInt64 = true,
+      .shaderInt16 = true,
+      .sparseBinding = true,
+      .sparseResidencyBuffer = false,
+      .sparseResidencyImage2D = false,
+      .sparseResidencyImage3D = false,
+      .sparseResidencyAliased = false,
+      .variableMultisampleRate = true,
+      .shaderResourceMinLod = true,
+      .shaderResourceResidency = true,
+      .inheritedQueries = true,
+   };
+}
+
 VKAPI_ATTR void VKAPI_CALL
 rvgpu_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
                                  VkPhysicalDeviceFeatures2 *pFeatures)
 {
+   // RVGPU_FROM_HANDLE(rvgpu_physical_device, pdevice, physicalDevice);
+   rvgpu_GetPhysicalDeviceFeatures(physicalDevice, &pFeatures->features);
 }
 
 void

@@ -35,6 +35,8 @@
 #include "rvgpu_physical_device.h"
 #include "rvgpu_wsi.h"
 
+#define RVGPU_UNUSED_VARIABLE(var)  ((void)(var))
+
 extern const struct vk_command_buffer_ops rvgpu_cmd_buffer_ops;
 
 #define RVGPU_FROM_HANDLE(__rvgpu_type, __name, __handle) VK_FROM_HANDLE(__rvgpu_type, __name, __handle)
