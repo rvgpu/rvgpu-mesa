@@ -31,6 +31,7 @@ rvgpu_entrypoints = custom_target(
 )
 
 rvgpu_files = files(
+    'drm_ioctl.c',
     'rvgpu_device.c',
     'rvgpu_instance.c',
     'rvgpu_physical_device.c',

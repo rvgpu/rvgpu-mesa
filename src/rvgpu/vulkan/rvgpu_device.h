@@ -111,8 +111,4 @@ enum rvgpu_dispatch_table {
    RVGPU_DISPATCH_TABLE_COUNT,
 }; 
 
-typedef struct rvgpu_device *rvgpu_device_handle;
-
-int rvgpu_device_initialize(int fd, uint32_t *major_version, uint32_t *minor_version, rvgpu_device_handle *device_handle);
-
 #endif // __RVGPU_DEVICE_H__

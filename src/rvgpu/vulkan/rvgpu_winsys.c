@@ -47,10 +47,10 @@ struct rvgpu_winsys *
 rvgpu_winsys_create(int fd, uint64_t debug_flags, uint64_t perftest_flags)
 {
    uint32_t drm_major, drm_minor, r;
-   rvgpu_device_handle dev;
+   rvgpu_drm_device_handle dev;
    struct rvgpu_winsys *ws = NULL;
 
-   r = rvgpu_device_initialize(fd, &drm_major, &drm_minor, &dev);
+   r = rvgpu_drm_device_initialize(fd, &drm_major, &drm_minor, &dev);
    if (r) {
       fprintf(stderr, "radv/amdgpu: failed to initialize device.\n");
       return NULL;

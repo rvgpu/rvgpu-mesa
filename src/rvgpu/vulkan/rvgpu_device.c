@@ -25,12 +25,6 @@
  * SOFTWARE.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <unistd.h>
-#include <xf86drm.h>
-
 #include <vulkan/vulkan.h>
 
 #include "vk_common_entrypoints.h"
@@ -43,32 +37,6 @@
    {                                                \
       .name = str_name, .len = sizeof(str_name) - 1 \
    }
-
-
-int rvgpu_device_initialize(int fd, 
-                            uint32_t *major_version, 
-                            uint32_t *minor_version, 
-                            rvgpu_device_handle *device_handle)
-{
-   struct rvgpu_device *dev;
-   drmVersionPtr version;
-
-   *device_handle = NULL;
-
-   dev = calloc(1, sizeof(struct rvgpu_device));
-   if (!dev) {
-      fprintf(stderr, "%s: calloc failed\n", __func__);
-      return -ENOMEM;
-   }
-
-   version = drmGetVersion(fd);
-   *major_version = version->version_major;
-   *minor_version = version->version_minor;
-   drmFreeVersion(version);
-
-   *device_handle = dev;
-   return 0;
-}
 
 struct dispatch_table_builder {
    struct vk_device_dispatch_table *tables[RVGPU_DISPATCH_TABLE_COUNT];

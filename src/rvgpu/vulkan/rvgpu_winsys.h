@@ -31,6 +31,8 @@
 #include "vk_sync.h"
 #include "vk_sync_timeline.h"
 
+#include "drm_ioctl.h"
+
 #include "rvgpu_device.h"
 #include "rvgpu_gpuinfo.h"
 #include "rvgpu_surface.h"
@@ -276,7 +278,7 @@ struct rvgpu_winsys_ops {
 struct rvgpu_winsys {
    struct rvgpu_winsys_ops ops;
 
-   rvgpu_device_handle dev;
+   rvgpu_drm_device_handle dev;
 
    const struct vk_sync_type *sync_types[3];
    struct vk_sync_type syncobj_sync_type;

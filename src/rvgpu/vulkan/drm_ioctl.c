@@ -21,32 +21,36 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef DRM_IOCTL_H__
-#define DRM_IOCTL_H__
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
 #include <xf86drm.h>
 
-#define RVGPU_DRM_IOC_W(cmdIndex, size) DRM_IOC( DRM_IOC_WRITE, DRM_IOCTL_BASE, DRM_COMMAND_BASE + cmdIndex, size);
+#include "drm_ioctl.h"
 
-#define AMDGPU_INFO_ACCEL_WORKING   
+int rvgpu_drm_device_initialize(int fd, 
+                                uint32_t *major_version, 
+                                uint32_t *minor_version, 
+                                rvgpu_drm_device_handle *device_handle)
+{
+   struct rvgpu_drm_device *dev;
+   drmVersionPtr version;
 
-/* Input structure for the INFO ioctl */
-struct drm_amdgpu_info {
-    /* Where the return value will be stored */
-    __u64 return_pointer;
-    /* The size of the return value. Just like "size" in "snprintf",
-     * it limits how many bytes the kernel can write. */
-    __u32 return_size;
-    /* The query request id. */
-    __u32 query;
-};
+   *device_handle = NULL;
 
-struct rvgpu_drm_device {
-    int fd;
-};
+   dev = calloc(1, sizeof(struct rvgpu_drm_device));
+   if (!dev) {
+      fprintf(stderr, "%s: calloc failed\n", __func__);
+      return -ENOMEM;
+   }
 
-typedef struct rvgpu_drm_device *rvgpu_drm_device_handle;
+   version = drmGetVersion(fd);
+   *major_version = version->version_major;
+   *minor_version = version->version_minor;
+   drmFreeVersion(version);
 
-int rvgpu_drm_device_initialize(int fd, uint32_t *major_version, uint32_t *minor_version, rvgpu_drm_device_handle *device_handle);
+   *device_handle = dev;
+   return 0;
+}
 
-#endif // DRM_IOCTL_H__
