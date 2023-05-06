@@ -30,6 +30,8 @@
 
 #include "vk_device.h"
 
+#include "rvgpu_queue.h"
+
 /**
  * Describe GPU h/w info needed for UMD correct initialization
  */ 
@@ -102,6 +104,9 @@ struct rvgpu_device {
    struct rvgpu_instance *instance;
    struct rvgpu_winsys *ws;
    struct rvgpu_physical_device *physical_device;
+
+   struct rvgpu_queue *queues[RVGPU_MAX_QUEUE_FAMILIES];
+   int queue_count[RVGPU_MAX_QUEUE_FAMILIES];
 
    int fd;
 };

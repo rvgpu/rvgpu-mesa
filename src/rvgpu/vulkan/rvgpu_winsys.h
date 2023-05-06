@@ -33,9 +33,16 @@
 
 #include "drm_ioctl.h"
 
-#include "rvgpu_device.h"
 #include "rvgpu_gpuinfo.h"
 #include "rvgpu_surface.h"
+
+enum rvgpu_ctx_priority {
+   RVGPU_CTX_PRIORITY_INVALID = -1,
+   RVGPU_CTX_PRIORITY_LOW = 0,
+   RVGPU_CTX_PRIORITY_MEDIUM,
+   RVGPU_CTX_PRIORITY_HIGH,
+   RVGPU_CTX_PRIORITY_REALTIME,
+};
 
 enum amd_ip_type
 {  
@@ -76,14 +83,6 @@ enum radeon_bo_flag { /* bitfield */
                       RADEON_FLAG_ZERO_VRAM = (1 << 10),
                       RADEON_FLAG_REPLAYABLE = (1 << 11),
                       RADEON_FLAG_DISCARDABLE = (1 << 12),
-};
-
-enum radeon_ctx_priority {
-   RADEON_CTX_PRIORITY_INVALID = -1,
-   RADEON_CTX_PRIORITY_LOW = 0,
-   RADEON_CTX_PRIORITY_MEDIUM,
-   RADEON_CTX_PRIORITY_HIGH,
-   RADEON_CTX_PRIORITY_REALTIME,
 };
 
 enum radeon_bo_layout {
@@ -222,7 +221,7 @@ struct rvgpu_winsys_ops {
    VkResult (*buffer_make_resident)(struct rvgpu_winsys *ws, struct rvgpu_winsys_bo *bo,
                                     bool resident);
 
-   VkResult (*ctx_create)(struct rvgpu_winsys *ws, enum radeon_ctx_priority priority,
+   VkResult (*ctx_create)(struct rvgpu_winsys *ws, enum rvgpu_ctx_priority priority,
                           struct rvgpu_winsys_ctx **ctx);
    void (*ctx_destroy)(struct rvgpu_winsys_ctx *ctx);
 

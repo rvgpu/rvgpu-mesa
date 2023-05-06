@@ -30,9 +30,10 @@
 
 #include "vk_object.h"
 
-#include "rvgpu_device.h"
 #include "rvgpu_instance.h"
 #include "rvgpu_physical_device.h"
+#include "rvgpu_queue.h"
+#include "rvgpu_device.h"
 #include "rvgpu_wsi.h"
 
 #define RVGPU_UNUSED_VARIABLE(var)  ((void)(var))

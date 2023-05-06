@@ -28,6 +28,7 @@
 #include <vulkan/vulkan.h>
 
 #include "vk_common_entrypoints.h"
+#include "vk_util.h"
 #include "vk_log.h"
 
 #include "rvgpu_private.h"
@@ -98,6 +99,32 @@ rvgpu_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pC
       return result;
    }
 
+   /* Create one context per queue priority. */
+   for (unsigned i = 0; i < pCreateInfo->queueCreateInfoCount; i++) {
+      const VkDeviceQueueCreateInfo *queue_create = &pCreateInfo->pQueueCreateInfos[i];
+      uint32_t qfi = queue_create->queueFamilyIndex;
+      const VkDeviceQueueGlobalPriorityCreateInfoKHR *global_priority = 
+                vk_find_struct_const(queue_create->pNext, DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO_KHR);
+
+      device->queues[qfi] =
+         vk_alloc(&device->vk.alloc, queue_create->queueCount * sizeof(struct rvgpu_queue), 8,
+                  VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
+      if (!device->queues[qfi]) {
+         result = VK_ERROR_OUT_OF_HOST_MEMORY;
+         goto fail_queue;
+      }
+
+      memset(device->queues[qfi], 0, queue_create->queueCount * sizeof(struct rvgpu_queue));
+
+      device->queue_count[qfi] = queue_create->queueCount;
+
+      for (unsigned q = 0; q < queue_create->queueCount; q++) {
+         result = rvgpu_queue_init(device, &device->queues[qfi][q], q, queue_create, global_priority);
+         if (result != VK_SUCCESS)
+            goto fail_queue;
+      }
+   }
+
    init_dispatch_tables(device, physical_device);
 
    device->vk.command_buffer_ops = &rvgpu_cmd_buffer_ops;
@@ -110,4 +137,15 @@ rvgpu_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pC
 
    *pDevice = rvgpu_device_to_handle(device);
    return VK_SUCCESS;
+fail_queue:
+   for (unsigned i = 0; i < RVGPU_MAX_QUEUE_FAMILIES; i++) {
+      for (unsigned q = 0; q < device->queue_count[i]; q++) {
+         rvgpu_queue_finish(&device->queues[i][q]);
+      }
+      if (device->queue_count[i]) {
+         vk_free(&device->vk.alloc, device->queues[i]);
+      }
+   }
+
+   return result;
 }

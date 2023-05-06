@@ -38,18 +38,7 @@
 #include "rvgpu_winsys.h"
 #include "rvgpu_instance.h"
 #include "rvgpu_perfcounter.h"
-
-/* queue types */
-enum rvgpu_queue_family {
-   RVGPU_QUEUE_GENERAL,
-   RVGPU_QUEUE_COMPUTE,
-   RVGPU_QUEUE_TRANSFER,
-   RVGPU_QUEUE_VIDEO_DEC,
-   RVGPU_QUEUE_VIDEO_ENC,
-   RVGPU_MAX_QUEUE_FAMILIES,
-   RVGPU_QUEUE_FOREIGN = RVGPU_MAX_QUEUE_FAMILIES,
-   RVGPU_QUEUE_IGNORED,
-};
+#include "rvgpu_queue.h"
 
 struct rvgpu_binning_settings {
    unsigned context_states_per_bin;    /* allowed range: [1, 6] */
@@ -63,7 +52,6 @@ struct rvgpu_physical_device {
    struct rvgpu_instance *instance;
 
    struct rvgpu_winsys *ws;
-   struct radeon_info rad_info;
    char name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
    char marketing_name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
    uint8_t driver_uuid[VK_UUID_SIZE];
