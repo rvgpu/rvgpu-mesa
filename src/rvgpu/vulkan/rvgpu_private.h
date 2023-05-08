@@ -36,6 +36,8 @@
 #include "rvgpu_device.h"
 #include "rvgpu_wsi.h"
 
+#define RVGPU_API_VERSION VK_MAKE_VERSION(1, 1, VK_HEADER_VERSION)
+
 #define RVGPU_UNUSED_VARIABLE(var)  ((void)(var))
 
 extern const struct vk_command_buffer_ops rvgpu_cmd_buffer_ops;
