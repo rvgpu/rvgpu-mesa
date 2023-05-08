@@ -32,6 +32,67 @@
 #include "rvgpu_private.h"
 
 static void
+rvgpu_get_buffer_memory_requirements(struct rvgpu_device *device, VkDeviceSize size,
+                                     VkBufferCreateFlags flags, VkBufferCreateFlags usage,
+                                     VkMemoryRequirements2 *pMemoryRequirements)
+{
+   pMemoryRequirements->memoryRequirements.memoryTypeBits =
+      ((1u << device->physical_device->memory_properties.memoryTypeCount) - 1u) &
+      ~device->physical_device->memory_types_32bit;
+
+   /* Allow 32-bit address-space for DGC usage, as this buffer will contain
+    * cmd buffer upload buffers, and those get passed to shaders through 32-bit
+    * pointers.
+    *
+    * We only allow it with this usage set, to "protect" the 32-bit address space
+    * from being overused. The actual requirement is done as part of
+    * vkGetGeneratedCommandsMemoryRequirementsNV. (we have to make sure their
+    * intersection is non-zero at least)
+    */
+   if (usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT)
+      pMemoryRequirements->memoryRequirements.memoryTypeBits |=
+         device->physical_device->memory_types_32bit;
+
+   /* Force 32-bit address-space for descriptor buffers usage because they are passed to shaders
+    * through 32-bit pointers.
+    */
+   if (usage & (VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT |
+                VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT))
+      pMemoryRequirements->memoryRequirements.memoryTypeBits =
+         device->physical_device->memory_types_32bit;
+
+   if (flags & VK_BUFFER_CREATE_SPARSE_BINDING_BIT)
+      pMemoryRequirements->memoryRequirements.alignment = 4096;
+   else
+      pMemoryRequirements->memoryRequirements.alignment = 16;
+
+   /* Top level acceleration structures need the bottom 6 bits to store
+    * the root ids of instances. The hardware also needs bvh nodes to
+    * be 64 byte aligned.
+    */
+   if (usage & VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR)
+      pMemoryRequirements->memoryRequirements.alignment =
+         MAX2(pMemoryRequirements->memoryRequirements.alignment, 64);
+
+   pMemoryRequirements->memoryRequirements.size =
+      align64(size, pMemoryRequirements->memoryRequirements.alignment);
+
+   vk_foreach_struct(ext, pMemoryRequirements->pNext)
+   {
+      switch (ext->sType) {
+      case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS: {
+         VkMemoryDedicatedRequirements *req = (VkMemoryDedicatedRequirements *)ext;
+         req->requiresDedicatedAllocation = false;
+         req->prefersDedicatedAllocation = req->requiresDedicatedAllocation;
+         break;
+      }
+      default:
+         break;
+      }
+   }
+}
+
+static void
 rvgpu_destroy_buffer(struct rvgpu_device *device, const VkAllocationCallbacks *pAllocator,
                      struct rvgpu_buffer *buffer)
 {  
@@ -95,4 +156,15 @@ rvgpu_CreateBuffer(VkDevice _device, const VkBufferCreateInfo *pCreateInfo,
 {
    RVGPU_FROM_HANDLE(rvgpu_device, device, _device);
    return rvgpu_create_buffer(device, pCreateInfo, pAllocator, pBuffer, false);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+rvgpu_GetDeviceBufferMemoryRequirements(VkDevice _device,
+                                        const VkDeviceBufferMemoryRequirements *pInfo,
+                                        VkMemoryRequirements2 *pMemoryRequirements)
+{
+   RVGPU_FROM_HANDLE(rvgpu_device, device, _device);
+
+   rvgpu_get_buffer_memory_requirements(device, pInfo->pCreateInfo->size, pInfo->pCreateInfo->flags,
+                                        pInfo->pCreateInfo->usage, pMemoryRequirements);
 }
