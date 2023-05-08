@@ -25,28 +25,17 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __RVGPU_PRIVATE_H__
-#define __RVGPU_PRIVATE_H__
+#ifndef RVGPU_IMAGE_H__
+#define RVGPU_IMAGE_H__
 
-#include "vk_object.h"
+struct rvgpu_image_create_info {
+   const VkImageCreateInfo *vk_info;
+   bool scanout;
+   bool no_metadata_planes;
+   bool prime_blit_src;
+}; 
+   
+VkResult rvgpu_image_create(VkDevice _device, const struct rvgpu_image_create_info *info,
+                            const VkAllocationCallbacks *alloc, VkImage *pImage, bool is_internal);
 
-#include "rvgpu_instance.h"
-#include "rvgpu_physical_device.h"
-#include "rvgpu_queue.h"
-#include "rvgpu_device.h"
-#include "rvgpu_wsi.h"
-#include "rvgpu_image.h"
-
-#define RVGPU_API_VERSION VK_MAKE_VERSION(1, 1, VK_HEADER_VERSION)
-
-#define RVGPU_UNUSED_VARIABLE(var)  ((void)(var))
-
-extern const struct vk_command_buffer_ops rvgpu_cmd_buffer_ops;
-
-#define RVGPU_FROM_HANDLE(__rvgpu_type, __name, __handle) VK_FROM_HANDLE(__rvgpu_type, __name, __handle)
-
-VK_DEFINE_HANDLE_CASTS(rvgpu_device, vk.base, VkDevice, VK_OBJECT_TYPE_DEVICE)
-VK_DEFINE_HANDLE_CASTS(rvgpu_instance, vk.base, VkInstance, VK_OBJECT_TYPE_INSTANCE)
-VK_DEFINE_HANDLE_CASTS(rvgpu_physical_device, vk.base, VkPhysicalDevice, VK_OBJECT_TYPE_PHYSICAL_DEVICE)
-
-#endif // __RVGPU_PRIVATE_H__
+#endif // RVGPU_IMAGE_H__
