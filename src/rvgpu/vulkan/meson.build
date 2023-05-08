@@ -37,6 +37,7 @@ rvgpu_files = files(
     'rvgpu_physical_device.c',
     'rvgpu_perfcounter.c',
     'rvgpu_image.c',
+    'rvgpu_buffer.c',
     'rvgpu_formats.c',
     'rvgpu_queue.c',
     'rvgpu_winsys.c',

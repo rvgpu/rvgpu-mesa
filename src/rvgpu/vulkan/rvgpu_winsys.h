@@ -93,6 +93,28 @@ enum radeon_bo_layout {
    RADEON_LAYOUT_UNKNOWN
 };
 
+/* Kernel effectively allows 0-31. This sets some priorities for fixed
+ * functionality buffers */
+enum {
+   RVGPU_BO_PRIORITY_APPLICATION_MAX = 28,
+
+   /* virtual buffers have 0 priority since the priority is not used. */
+   RVGPU_BO_PRIORITY_VIRTUAL = 0,
+
+   RVGPU_BO_PRIORITY_METADATA = 10,
+   /* This should be considerably lower than most of the stuff below,
+    * but how much lower is hard to say since we don't know application
+    * assignments. Put it pretty high since it is GTT anyway. */
+   RVGPU_BO_PRIORITY_QUERY_POOL = 29,
+
+   RVGPU_BO_PRIORITY_DESCRIPTOR = 30,
+   RVGPU_BO_PRIORITY_UPLOAD_BUFFER = 30,
+   RVGPU_BO_PRIORITY_FENCE = 30,
+   RVGPU_BO_PRIORITY_SHADER = 31,
+   RVGPU_BO_PRIORITY_SCRATCH = 31,
+   RVGPU_BO_PRIORITY_CS = 31,
+};
+
 /* Tiling info for display code, DRI sharing, and other data. */
 struct radeon_bo_metadata {
    /* Tiling flags describing the texture layout for display code

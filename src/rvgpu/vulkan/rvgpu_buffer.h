@@ -25,31 +25,25 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __RVGPU_PRIVATE_H__
-#define __RVGPU_PRIVATE_H__
+#ifndef RVGPU_BUFFER_H__
+#define RVGPU_BUFFER_H__
 
-#include "vk_object.h"
+#include "vk_buffer.h"
 
-#include "rvgpu_instance.h"
-#include "rvgpu_physical_device.h"
-#include "rvgpu_queue.h"
-#include "rvgpu_device.h"
-#include "rvgpu_wsi.h"
-#include "rvgpu_image.h"
-#include "rvgpu_buffer.h"
+#include "rvgpu_private.h"
 
-#define RVGPU_API_VERSION VK_MAKE_VERSION(1, 1, VK_HEADER_VERSION)
+struct rvgpu_buffer {
+   struct vk_buffer vk;
 
-#define RVGPU_UNUSED_VARIABLE(var)  ((void)(var))
+   /* Set when bound */
+   struct rvgpu_winsys_bo *bo;
+   VkDeviceSize offset;
+};
 
-extern const struct vk_command_buffer_ops rvgpu_cmd_buffer_ops;
+VkResult rvgpu_create_buffer(struct rvgpu_device *device, const VkBufferCreateInfo *pCreateInfo,
+                             const VkAllocationCallbacks *pAllocator, VkBuffer *pBuffer,
+                             bool is_internal);
 
-#define RVGPU_FROM_HANDLE(__rvgpu_type, __name, __handle) VK_FROM_HANDLE(__rvgpu_type, __name, __handle)
+void rvgpu_buffer_finish(struct rvgpu_buffer *buffer);
 
-VK_DEFINE_HANDLE_CASTS(rvgpu_device, vk.base, VkDevice, VK_OBJECT_TYPE_DEVICE)
-VK_DEFINE_HANDLE_CASTS(rvgpu_instance, vk.base, VkInstance, VK_OBJECT_TYPE_INSTANCE)
-VK_DEFINE_HANDLE_CASTS(rvgpu_physical_device, vk.base, VkPhysicalDevice, VK_OBJECT_TYPE_PHYSICAL_DEVICE)
-
-VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_buffer, vk.base, VkBuffer, VK_OBJECT_TYPE_BUFFER)
-
-#endif // __RVGPU_PRIVATE_H__
+#endif // RVGPU_BUFFER_H__
