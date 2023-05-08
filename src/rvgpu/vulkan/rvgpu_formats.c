@@ -26,6 +26,8 @@
  */
 
 #include "vk_format.h"
+#include "vk_util.h"
+#include "vk_enum_defines.h"
 
 #include "rvgpu_private.h"
 
@@ -152,4 +154,11 @@ rvgpu_GetPhysicalDeviceFormatProperties2(VkPhysicalDevice physicalDevice, VkForm
    VkFormatProperties3 format_props;
    
    rvgpu_physical_device_get_format_properties(physical_device, format, &format_props);
+
+   pFormatProperties->formatProperties.linearTilingFeatures =
+      vk_format_features2_to_features(format_props.linearTilingFeatures);
+   pFormatProperties->formatProperties.optimalTilingFeatures =
+      vk_format_features2_to_features(format_props.optimalTilingFeatures);
+   pFormatProperties->formatProperties.bufferFeatures =
+      vk_format_features2_to_features(format_props.bufferFeatures);
 }
