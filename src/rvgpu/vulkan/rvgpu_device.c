@@ -25,8 +25,6 @@
  * SOFTWARE.
  */
 
-#include <vulkan/vulkan.h>
-
 #include "vk_common_entrypoints.h"
 #include "vk_util.h"
 #include "vk_log.h"
