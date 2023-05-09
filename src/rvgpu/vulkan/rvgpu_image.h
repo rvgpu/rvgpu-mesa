@@ -28,6 +28,59 @@
 #ifndef RVGPU_IMAGE_H__
 #define RVGPU_IMAGE_H__
 
+#include "vk_image.h"
+
+#include "rvgpu_winsys.h"
+
+struct rvgpu_image_binding {
+   /* Set when bound */
+   struct rvgpu_winsys_bo *bo;
+   VkDeviceSize offset;
+};
+
+struct rvgpu_image_plane {
+   VkFormat format;
+   // struct radeon_surf surface;
+}; 
+
+struct rvgpu_image {
+   struct vk_image vk;
+
+   struct ac_surf_info info;
+
+   VkDeviceSize size;
+   uint32_t alignment;
+
+   unsigned queue_family_mask;
+   bool exclusive;
+   bool shareable;
+   bool l2_coherent;
+   bool dcc_sign_reinterpret;
+   bool support_comp_to_single;
+
+   struct rvgpu_image_binding bindings[3];
+   bool tc_compatible_cmask;
+
+   uint64_t clear_value_offset;
+   uint64_t fce_pred_offset;
+   uint64_t dcc_pred_offset;
+
+   /*
+    * Metadata for the TC-compat zrange workaround. If the 32-bit value
+    * stored at this offset is UINT_MAX, the driver will emit
+    * DB_Z_INFO.ZRANGE_PRECISION=0, otherwise it will skip the
+    * SET_CONTEXT_REG packet.
+    */
+   uint64_t tc_compat_zrange_offset;
+
+   /* For VK_ANDROID_native_buffer, the WSI image owns the memory, */
+   VkDeviceMemory owned_memory;
+
+   unsigned plane_count;
+   bool disjoint;
+   struct rvgpu_image_plane planes[0];
+};
+
 struct rvgpu_image_create_info {
    const VkImageCreateInfo *vk_info;
    bool scanout;

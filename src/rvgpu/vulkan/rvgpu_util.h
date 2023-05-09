@@ -25,37 +25,36 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __RVGPU_PRIVATE_H__
-#define __RVGPU_PRIVATE_H__
+#ifndef RVGPU_UTIL_H__
+#define RVGPU_UTIL_H__
 
-#include "vk_object.h"
+#include <stdint.h>
 
-#include "rvgpu_instance.h"
-#include "rvgpu_physical_device.h"
-#include "rvgpu_queue.h"
-#include "rvgpu_device.h"
-#include "rvgpu_wsi.h"
-#include "rvgpu_image.h"
-#include "rvgpu_buffer.h"
-#include "rvgpu_device_memory.h"
+static inline uint32_t
+align_u32(uint32_t v, uint32_t a)
+{
+   assert(a != 0 && a == (a & -a));
+   return (v + a - 1) & ~(a - 1);
+}
 
-#include "rvgpu_util.h"
+static inline uint32_t
+align_u32_npot(uint32_t v, uint32_t a)
+{
+   return (v + a - 1) / a * a;
+}
 
-#define RVGPU_API_VERSION VK_MAKE_VERSION(1, 1, VK_HEADER_VERSION)
+static inline uint64_t
+align_u64(uint64_t v, uint64_t a)
+{
+   assert(a != 0 && a == (a & -a));
+   return (v + a - 1) & ~(a - 1);
+}
 
-#define RVGPU_UNUSED_VARIABLE(var)  ((void)(var))
+static inline int32_t
+align_i32(int32_t v, int32_t a)
+{
+   assert(a != 0 && a == (a & -a));
+   return (v + a - 1) & ~(a - 1);
+}
 
-extern const struct vk_command_buffer_ops rvgpu_cmd_buffer_ops;
-
-#define RVGPU_FROM_HANDLE(__rvgpu_type, __name, __handle) VK_FROM_HANDLE(__rvgpu_type, __name, __handle)
-
-VK_DEFINE_HANDLE_CASTS(rvgpu_device, vk.base, VkDevice, VK_OBJECT_TYPE_DEVICE)
-VK_DEFINE_HANDLE_CASTS(rvgpu_instance, vk.base, VkInstance, VK_OBJECT_TYPE_INSTANCE)
-VK_DEFINE_HANDLE_CASTS(rvgpu_physical_device, vk.base, VkPhysicalDevice, VK_OBJECT_TYPE_PHYSICAL_DEVICE)
-
-VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_buffer, vk.base, VkBuffer, VK_OBJECT_TYPE_BUFFER)
-VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_image, vk.base, VkImage, VK_OBJECT_TYPE_IMAGE)
-VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_device_memory, base, VkDeviceMemory, VK_OBJECT_TYPE_DEVICE_MEMORY)
-
-
-#endif // __RVGPU_PRIVATE_H__
+#endif // RVGPU_UTIL_H__
