@@ -147,3 +147,33 @@ fail_queue:
 
    return result;
 }
+
+VKAPI_ATTR void VKAPI_CALL
+rvgpu_GetImageMemoryRequirements2(VkDevice _device, const VkImageMemoryRequirementsInfo2 *pInfo,
+                                  VkMemoryRequirements2 *pMemoryRequirements)
+{
+   RVGPU_FROM_HANDLE(rvgpu_device, device, _device);
+   RVGPU_FROM_HANDLE(rvgpu_image, image, pInfo->image);
+
+   pMemoryRequirements->memoryRequirements.memoryTypeBits =
+      ((1u << device->physical_device->memory_properties.memoryTypeCount) - 1u) &
+      ~device->physical_device->memory_types_32bit;
+
+   pMemoryRequirements->memoryRequirements.size = image->size;
+   pMemoryRequirements->memoryRequirements.alignment = image->alignment;
+
+   vk_foreach_struct(ext, pMemoryRequirements->pNext)
+   {
+      switch (ext->sType) {
+      case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS: {
+         VkMemoryDedicatedRequirements *req = (VkMemoryDedicatedRequirements *)ext;
+         req->requiresDedicatedAllocation =
+            image->shareable && image->vk.tiling != VK_IMAGE_TILING_LINEAR;
+         req->prefersDedicatedAllocation = req->requiresDedicatedAllocation;
+         break;
+      }
+      default:
+         break;
+      }
+   }
+}
