@@ -31,6 +31,7 @@
 #include "vk_image.h"
 
 #include "rvgpu_winsys.h"
+#include "rvgpu_surface.h"
 
 struct rvgpu_image_binding {
    /* Set when bound */
@@ -40,14 +41,13 @@ struct rvgpu_image_binding {
 
 struct rvgpu_image_plane {
    VkFormat format;
-   // struct radeon_surf surface;
+   struct rvgpu_surf surface;
 }; 
 
 struct rvgpu_image {
    struct vk_image vk;
 
-   struct ac_surf_info info;
-
+   struct rvgpu_surf_info info;
    VkDeviceSize size;
    uint32_t alignment;
 
@@ -88,7 +88,14 @@ struct rvgpu_image_create_info {
    bool prime_blit_src;
 }; 
    
-VkResult rvgpu_image_create(VkDevice _device, const struct rvgpu_image_create_info *info,
-                            const VkAllocationCallbacks *alloc, VkImage *pImage, bool is_internal);
+VkResult rvgpu_image_create(VkDevice _device, 
+                            const struct rvgpu_image_create_info *info,
+                            const VkAllocationCallbacks *alloc, 
+                            VkImage *pImage, 
+                            bool is_internal);
+
+VkResult rvgpu_image_create_layout(struct rvgpu_device *device, 
+                                   struct rvgpu_image_create_info create_info, 
+                                   struct rvgpu_image *image);
 
 #endif // RVGPU_IMAGE_H__

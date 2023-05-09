@@ -55,6 +55,24 @@ rvgpu_get_queue_global_priority(const VkDeviceQueueGlobalPriorityCreateInfoKHR *
    }
 }
 
+enum rvgpu_queue_family
+vk_queue_to_rvgpu(int queue_family_index)
+{
+   if (queue_family_index == VK_QUEUE_FAMILY_EXTERNAL ||
+       queue_family_index == VK_QUEUE_FAMILY_FOREIGN_EXT)
+      return RVGPU_QUEUE_FOREIGN;
+   if (queue_family_index == VK_QUEUE_FAMILY_IGNORED)
+      return RVGPU_QUEUE_IGNORED;
+
+   switch (queue_family_index) {
+   case 0:  return RVGPU_QUEUE_GENERAL;
+   case 1:  return RVGPU_QUEUE_COMPUTE;
+   default: return RVGPU_QUEUE_GENERAL;
+   }
+
+   return RVGPU_QUEUE_GENERAL;
+}
+
 int
 rvgpu_queue_init(struct rvgpu_device *device, struct rvgpu_queue *queue, int idx,
                  const VkDeviceQueueCreateInfo *create_info,

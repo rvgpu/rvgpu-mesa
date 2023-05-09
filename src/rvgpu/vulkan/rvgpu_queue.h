@@ -55,4 +55,6 @@ int rvgpu_queue_init(struct rvgpu_device *device, struct rvgpu_queue *queue,  in
                      const VkDeviceQueueGlobalPriorityCreateInfoKHR *global_priority);
 void rvgpu_queue_finish(struct rvgpu_queue *queue);
 
+enum rvgpu_queue_family vk_queue_to_rvgpu(int queue_family_index);
+
 #endif // RVGPU_QUEUE_H__

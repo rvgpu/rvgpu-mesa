@@ -25,169 +25,23 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __RVGPU_SURFACE_H__
-#define __RVGPU_SURFACE_H__
+#ifndef RVGPU_SURFACE_H__
+#define RVGPU_SURFACE_H__
 
-#define RADEON_SURF_MAX_LEVELS 15
+struct rvgpu_surf_info {
+   uint32_t width;
+   uint32_t height;
+   uint32_t depth;
+   uint8_t samples;         /* For Z/S: samples; For color: FMASK coverage samples */
+   uint8_t storage_samples; /* For color: allocated samples */
+   uint8_t levels;
+   uint8_t num_channels; /* heuristic for displayability */
+   uint16_t array_size;
+   uint32_t *surf_index; /* Set a monotonic counter for tile swizzling. */
+   uint32_t *fmask_surf_index;
+}; 
 
-/* Same as addrlib - AddrResourceType. */
-enum gfx9_resource_type
-{
-   RADEON_RESOURCE_1D = 0,
-   RADEON_RESOURCE_2D,
-   RADEON_RESOURCE_3D,
-};
-
-struct gfx9_surf_meta_flags {
-   uint8_t rb_aligned : 1;   /* optimal for RBs */
-   uint8_t pipe_aligned : 1; /* optimal for TC */
-   uint8_t independent_64B_blocks : 1;
-   uint8_t independent_128B_blocks : 1;
-   uint8_t max_compressed_block_size : 2;
-   uint8_t display_equation_valid : 1;
-};
-
-struct gfx9_surf_level {
-   unsigned offset;
-   unsigned size; /* the size of one level in one layer (the image is an array of layers
-                   * where each layer has an array of levels) */
-};
-
-/**
- * Meta address equation.
- *
- * DCC/HTILE address equation for doing DCC/HTILE address computations in shaders.
- *
- * ac_surface_meta_address_test.c contains the reference implementation.
- * ac_nir_{dcc,htile}_addr_from_coord is the NIR implementation.
- *
- * For DCC:
- * The gfx9 equation doesn't support mipmapping.
- * The gfx10 equation doesn't support mipmapping and MSAA.
- * (those are also limitations of Addr2ComputeDccAddrFromCoord)
- *
- * For HTILE:
- * The gfx9 equation isn't implemented.
- * The gfx10 equation doesn't support mipmapping.
- */
-struct gfx9_meta_equation {
-   uint16_t meta_block_width;
-   uint16_t meta_block_height;
-   uint16_t meta_block_depth;
-
-   union {
-      /* The gfx9 DCC equation is chip-specific, and it varies with:
-       * - resource type
-       * - swizzle_mode
-       * - bpp
-       * - number of samples
-       * - number of fragments
-       * - pipe_aligned
-       * - rb_aligned
-       */
-      struct {
-         uint8_t num_bits;
-         uint8_t num_pipe_bits;
-
-         struct {
-            struct {
-               uint8_t dim:3; /* 0..4 */
-               uint8_t ord:5; /* 0..31 */
-            } coord[5]; /* 0..num_coords-1 */
-         } bit[20]; /* 0..num_bits-1 */
-      } gfx9;
-
-      /* The gfx10 DCC equation is chip-specific, it requires 64KB_R_X, and it varies with:
-       * - bpp
-       * - number of samples
-       * - number of fragments
-       * - pipe_aligned
-       *
-       * The gfx10 HTILE equation is chip-specific, it requires 64KB_Z_X, and it varies with:
-       * - number of samples
-       */
-      uint16_t gfx10_bits[64];
-   } u;
-};
-
-struct gfx9_surf_layout {
-   uint16_t epitch;           /* gfx9 only, not on gfx10 */
-   uint8_t swizzle_mode;      /* color or depth */
-
-   enum gfx9_resource_type resource_type:8; /* 1D, 2D or 3D */
-   uint16_t surf_pitch;                   /* in blocks */
-   uint16_t surf_height;
-
-   uint64_t surf_offset; /* 0 unless imported with an offset */
-   /* The size of the 2D plane containing all mipmap levels. */
-   uint64_t surf_slice_size;
-   /* Mipmap level offset within the slice in bytes. Only valid for LINEAR. */
-   uint32_t offset[RADEON_SURF_MAX_LEVELS];
-   /* Mipmap level pitch in elements. Only valid for LINEAR. */
-   uint16_t pitch[RADEON_SURF_MAX_LEVELS];
-
-   uint16_t base_mip_width;
-   uint16_t base_mip_height;
-
-   /* Pitch of level in blocks, only valid for prt images. */
-   uint16_t prt_level_pitch[RADEON_SURF_MAX_LEVELS];
-   /* Offset within slice in bytes, only valid for prt images. */
-   uint32_t prt_level_offset[RADEON_SURF_MAX_LEVELS];
-
-   /* DCC or HTILE level info */
-   struct gfx9_surf_level meta_levels[RADEON_SURF_MAX_LEVELS];
-
-   union {
-      /* Color */
-      struct {
-         struct gfx9_surf_meta_flags dcc; /* metadata of color */
-         uint8_t fmask_swizzle_mode;
-         uint16_t fmask_epitch;     /* gfx9 only, not on gfx10 */
-
-         uint16_t dcc_pitch_max;
-         uint16_t dcc_height;
-
-         uint8_t dcc_block_width;
-         uint8_t dcc_block_height;
-         uint8_t dcc_block_depth;
-
-         /* Displayable DCC. This is always rb_aligned=0 and pipe_aligned=0.
-          * The 3D engine doesn't support that layout except for chips with 1 RB.
-          * All other chips must set rb_aligned=1.
-          * A compute shader needs to convert from aligned DCC to unaligned.
-          */
-         uint8_t display_dcc_alignment_log2;
-         uint32_t display_dcc_size;
-         uint16_t display_dcc_pitch_max; /* (mip chain pitch - 1) */
-         uint16_t display_dcc_height;
-         bool dcc_retile_use_uint16;     /* if all values fit into uint16_t */
-         uint32_t dcc_retile_num_elements;
-         void *dcc_retile_map;
-
-         /* CMASK level info (only level 0) */
-         struct gfx9_surf_level cmask_level0;
-
-         /* For DCC retiling. */
-         struct gfx9_meta_equation dcc_equation; /* 2D only */
-         struct gfx9_meta_equation display_dcc_equation;
-
-         /* For FCE compute. */
-         struct gfx9_meta_equation cmask_equation; /* 2D only */
-      } color;
-
-      /* Z/S */
-      struct {
-         uint64_t stencil_offset; /* separate stencil */
-         uint16_t stencil_epitch;   /* gfx9 only, not on gfx10 */
-         uint8_t stencil_swizzle_mode;
-
-         /* For HTILE VRS. */
-         struct gfx9_meta_equation htile_equation;
-      } zs;
-   };
-};
-
-struct radeon_surf {
+struct rvgpu_surf {
    /* Format properties. */
    uint8_t blk_w : 4;
    uint8_t blk_h : 4;
@@ -264,31 +118,6 @@ struct radeon_surf {
    uint64_t cmask_offset;
    uint64_t display_dcc_offset;
    uint64_t total_size;
-
-   union {
-      /* Return values for GFX8 and older.
-       *
-       * Some of them can be set by the caller if certain parameters are
-       * desirable. The allocator will try to obey them.
-       */
-      // struct legacy_surf_layout legacy;
-
-      /* GFX9+ return values. */
-      struct gfx9_surf_layout gfx9;
-   } u;
 };
 
-struct ac_surf_info {
-   uint32_t width;
-   uint32_t height;
-   uint32_t depth;
-   uint8_t samples;         /* For Z/S: samples; For color: FMASK coverage samples */
-   uint8_t storage_samples; /* For color: allocated samples */
-   uint8_t levels;
-   uint8_t num_channels; /* heuristic for displayability */
-   uint16_t array_size;
-   uint32_t *surf_index; /* Set a monotonic counter for tile swizzling. */
-   uint32_t *fmask_surf_index;
-};
-
-#endif //__RVGPU_SURFACE_H__
+#endif

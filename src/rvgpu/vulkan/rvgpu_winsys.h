@@ -287,8 +287,8 @@ struct rvgpu_winsys_ops {
 
    void (*dump_bo_log)(struct rvgpu_winsys *ws, FILE *file);
 
-   int (*surface_init)(struct rvgpu_winsys *ws, const struct ac_surf_info *surf_info,
-                       struct radeon_surf *surf);
+   int (*surface_init)(struct rvgpu_winsys *ws, const struct rvgpu_surf_info *surf_info,
+                       struct rvgpu_surf *surf);
 
    int (*get_fd)(struct rvgpu_winsys *ws);
 
