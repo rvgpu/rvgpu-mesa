@@ -156,6 +156,7 @@ struct radeon_bo_metadata {
 
 struct rvgpu_winsys_bo {
    uint64_t va;
+   uint64_t size;
    bool is_local;
    bool vram_no_cpu_access;
    bool use_global_list;
