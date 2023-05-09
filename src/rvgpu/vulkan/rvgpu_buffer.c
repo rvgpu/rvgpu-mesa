@@ -28,6 +28,8 @@
 #include "vk_format.h"
 #include "vk_util.h"
 #include "vk_log.h"
+#include "vk_buffer.h"
+#include "vk_common_entrypoints.h"
 
 #include "rvgpu_private.h"
 
@@ -167,4 +169,37 @@ rvgpu_GetDeviceBufferMemoryRequirements(VkDevice _device,
 
    rvgpu_get_buffer_memory_requirements(device, pInfo->pCreateInfo->size, pInfo->pCreateInfo->flags,
                                         pInfo->pCreateInfo->usage, pMemoryRequirements);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+rvgpu_BindBufferMemory2(VkDevice _device, uint32_t bindInfoCount,
+                        const VkBindBufferMemoryInfo *pBindInfos)
+{
+   RVGPU_FROM_HANDLE(rvgpu_device, device, _device);
+
+   for (uint32_t i = 0; i < bindInfoCount; ++i) {
+      RVGPU_FROM_HANDLE(rvgpu_device_memory, mem, pBindInfos[i].memory);
+      RVGPU_FROM_HANDLE(rvgpu_buffer, buffer, pBindInfos[i].buffer);
+
+      if (mem->alloc_size) {
+         VkBufferMemoryRequirementsInfo2 info = {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
+            .buffer = pBindInfos[i].buffer,
+         };
+         VkMemoryRequirements2 reqs = {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+         };
+
+         vk_common_GetBufferMemoryRequirements2(_device, &info, &reqs);
+
+         if (pBindInfos[i].memoryOffset + reqs.memoryRequirements.size > mem->alloc_size) {
+            return vk_errorf(device, VK_ERROR_UNKNOWN,
+                             "Device memory object too small for the buffer.\n");
+         }
+      }
+
+      buffer->bo = mem->bo;
+      buffer->offset = pBindInfos[i].memoryOffset;
+   }
+   return VK_SUCCESS;
 }
