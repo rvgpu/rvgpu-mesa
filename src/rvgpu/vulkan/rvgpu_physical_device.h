@@ -40,6 +40,13 @@
 #include "rvgpu_perfcounter.h"
 #include "rvgpu_queue.h"
 
+enum rvgpu_heap {
+   RVGPU_HEAP_VRAM = 1 << 0,
+   RVGPU_HEAP_GTT = 1 << 1,
+   RVGPU_HEAP_VRAM_VIS = 1 << 2,
+   RVGPU_HEAP_MAX = 1 << 3,
+};
+
 struct rvgpu_binning_settings {
    unsigned context_states_per_bin;    /* allowed range: [1, 6] */
    unsigned persistent_states_per_bin; /* allowed range: [1, 32] */
