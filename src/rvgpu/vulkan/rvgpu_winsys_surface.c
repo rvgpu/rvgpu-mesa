@@ -31,6 +31,8 @@ static int
 rvgpu_winsys_surface_init(struct rvgpu_winsys *ws, const struct rvgpu_surf_info *surf_info,
                           struct rvgpu_surf *surf)
 {
+   surf->surf_size = surf_info->width * surf_info->height * 4;
+   surf->total_size = surf->surf_size;
    return 0;
 }
 
