@@ -53,9 +53,6 @@ struct rvgpu_physical_device {
 
    struct wsi_device wsi_device;
 
-   /* Maximum compute shared memory size. */
-   uint32_t max_shared_size;
-
    VkPhysicalDeviceMemoryProperties memory_properties;
    enum radeon_bo_domain memory_domains[VK_MAX_MEMORY_TYPES];
    enum radeon_bo_flag memory_flags[VK_MAX_MEMORY_TYPES];
