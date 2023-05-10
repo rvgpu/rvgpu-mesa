@@ -114,3 +114,10 @@ rvgpu_CmdCopyImageToBuffer2(VkCommandBuffer commandBuffer,
       //                     &pCopyImageToBufferInfo->pRegions[r]);
    }
 }
+
+VKAPI_ATTR VkResult VKAPI_CALL
+rvgpu_EndCommandBuffer(VkCommandBuffer commandBuffer)
+{
+   RVGPU_FROM_HANDLE(rvgpu_cmd_buffer, cmd_buffer, commandBuffer);
+   return vk_command_buffer_end(&cmd_buffer->vk);
+}
