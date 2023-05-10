@@ -25,37 +25,17 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef __RVGPU_PRIVATE_H__
-#define __RVGPU_PRIVATE_H__
+#include "rvgpu_winsys.h"
 
-#include "vk_object.h"
+static int
+rvgpu_winsys_surface_init(struct rvgpu_winsys *ws, const struct rvgpu_surf_info *surf_info,
+                          struct rvgpu_surf *surf)
+{
+   return 0;
+}
 
-#include "rvgpu_instance.h"
-#include "rvgpu_physical_device.h"
-#include "rvgpu_queue.h"
-#include "rvgpu_device.h"
-#include "rvgpu_wsi.h"
-#include "rvgpu_image.h"
-#include "rvgpu_buffer.h"
-#include "rvgpu_device_memory.h"
-
-#include "rvgpu_util.h"
-
-#define RVGPU_API_VERSION VK_MAKE_VERSION(1, 1, VK_HEADER_VERSION)
-
-#define RVGPU_UNUSED_VARIABLE(var)  ((void)(var))
-
-extern const struct vk_command_buffer_ops rvgpu_cmd_buffer_ops;
-
-#define RVGPU_FROM_HANDLE(__rvgpu_type, __name, __handle) VK_FROM_HANDLE(__rvgpu_type, __name, __handle)
-
-VK_DEFINE_HANDLE_CASTS(rvgpu_device, vk.base, VkDevice, VK_OBJECT_TYPE_DEVICE)
-VK_DEFINE_HANDLE_CASTS(rvgpu_instance, vk.base, VkInstance, VK_OBJECT_TYPE_INSTANCE)
-VK_DEFINE_HANDLE_CASTS(rvgpu_physical_device, vk.base, VkPhysicalDevice, VK_OBJECT_TYPE_PHYSICAL_DEVICE)
-
-VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_buffer, vk.base, VkBuffer, VK_OBJECT_TYPE_BUFFER)
-VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_image, vk.base, VkImage, VK_OBJECT_TYPE_IMAGE)
-VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_device_memory, base, VkDeviceMemory, VK_OBJECT_TYPE_DEVICE_MEMORY)
-
-
-#endif // __RVGPU_PRIVATE_H__
+void
+rvgpu_winsys_surface_init_functions(struct rvgpu_winsys *ws)
+{
+   ws->ops.surface_init = rvgpu_winsys_surface_init;
+}

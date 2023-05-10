@@ -34,7 +34,7 @@
 #include "drm_ioctl.h"
 
 #include "rvgpu_gpuinfo.h"
-#include "rvgpu_surface.h"
+#include "rvgpu_winsys_surface.h"
 
 enum rvgpu_ctx_priority {
    RVGPU_CTX_PRIORITY_INVALID = -1,

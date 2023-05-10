@@ -31,7 +31,6 @@
 #include "vk_image.h"
 
 #include "rvgpu_winsys.h"
-#include "rvgpu_surface.h"
 
 struct rvgpu_image_binding {
    /* Set when bound */

@@ -28,6 +28,8 @@
 #ifndef RVGPU_SURFACE_H__
 #define RVGPU_SURFACE_H__
 
+#include <stdint.h>
+
 struct rvgpu_surf_info {
    uint32_t width;
    uint32_t height;
@@ -119,5 +121,26 @@ struct rvgpu_surf {
    uint64_t display_dcc_offset;
    uint64_t total_size;
 };
+
+#define RVGPU_SURF_TYPE_MASK     0xFF
+#define RVGPU_SURF_TYPE_SHIFT    0
+#define RVGPU_SURF_TYPE_1D       0
+#define RVGPU_SURF_TYPE_2D       1
+#define RVGPU_SURF_TYPE_3D       2
+#define RVGPU_SURF_TYPE_CUBEMAP  3
+#define RVGPU_SURF_TYPE_1D_ARRAY 4
+#define RVGPU_SURF_TYPE_2D_ARRAY 5
+#define RVGPU_SURF_MODE_MASK     0xFF
+#define RVGPU_SURF_MODE_SHIFT    8
+
+#define RVGPU_SURF_GET(v, field)                                                                   \
+   (((v) >> RVGPU_SURF_##field##_SHIFT) & RVGPU_SURF_##field##_MASK)
+#define RVGPU_SURF_SET(v, field) (((v)&RVGPU_SURF_##field##_MASK) << RVGPU_SURF_##field##_SHIFT)
+#define RVGPU_SURF_CLR(v, field)                                                                   \
+   ((v) & ~(RVGPU_SURF_##field##_MASK << RVGPU_SURF_##field##_SHIFT))
+
+struct rvgpu_winsys;
+
+void rvgpu_winsys_surface_init_functions(struct rvgpu_winsys *ws);
 
 #endif
