@@ -852,4 +852,11 @@ VKAPI_ATTR void VKAPI_CALL
 rvgpu_GetPhysicalDeviceMemoryProperties2(VkPhysicalDevice physicalDevice, 
                                          VkPhysicalDeviceMemoryProperties2 *pMemoryProperties)
 {
+   RVGPU_FROM_HANDLE(rvgpu_physical_device, pdevice, physicalDevice);
+
+   pMemoryProperties->memoryProperties = pdevice->memory_properties;
+
+   vk_foreach_struct (ext, pMemoryProperties->pNext) {
+      rvgpu_debug_ignored_stype(ext->sType);
+   }
 }
