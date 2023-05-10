@@ -65,12 +65,22 @@ rvgpu_winsys_bo_create(struct rvgpu_winsys *ws, uint64_t size, unsigned alignmen
    return VK_SUCCESS;
 }
 
+static void *
+rvgpu_winsys_bo_map(struct rvgpu_winsys_bo *bo)
+{
+   int ret;
+   void *data;
+   data = (void *)bo->va;
+
+   return data;
+}
+
 void
 rvgpu_winsys_bo_init_functions(struct rvgpu_winsys *ws)
 {
    ws->ops.buffer_create = rvgpu_winsys_bo_create;
    // ws->ops.buffer_destroy = radv_amdgpu_winsys_bo_destroy;
-   // ws->ops.buffer_map = radv_amdgpu_winsys_bo_map;
+   ws->ops.buffer_map = rvgpu_winsys_bo_map;
    // ws->ops.buffer_unmap = radv_amdgpu_winsys_bo_unmap;
    // ws->ops.buffer_from_ptr = radv_amdgpu_winsys_bo_from_ptr;
    // ws->ops.buffer_from_fd = radv_amdgpu_winsys_bo_from_fd;

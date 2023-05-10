@@ -230,3 +230,22 @@ rvgpu_AllocateMemory(VkDevice _device, const VkMemoryAllocateInfo *pAllocateInfo
    RVGPU_FROM_HANDLE(rvgpu_device, device, _device);
    return rvgpu_alloc_memory(device, pAllocateInfo, pAllocator, pMem, false);
 }
+
+VKAPI_ATTR VkResult VKAPI_CALL
+rvgpu_MapMemory2KHR(VkDevice _device, const VkMemoryMapInfoKHR *pMemoryMapInfo, void **ppData)
+{
+   RVGPU_FROM_HANDLE(rvgpu_device, device, _device);
+   RVGPU_FROM_HANDLE(rvgpu_device_memory, mem, pMemoryMapInfo->memory);
+
+   if (mem->user_ptr)
+      *ppData = mem->user_ptr;
+   else
+      *ppData = device->ws->ops.buffer_map(mem->bo);
+
+   if (*ppData) {
+      *ppData = (uint8_t *)*ppData + pMemoryMapInfo->offset;
+      return VK_SUCCESS;
+   }
+
+   return vk_error(device, VK_ERROR_MEMORY_MAP_FAILED);
+}
