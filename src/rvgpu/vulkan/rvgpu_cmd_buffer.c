@@ -92,3 +92,10 @@ rvgpu_CmdBindVertexBuffers2(VkCommandBuffer commandBuffer, uint32_t firstBinding
 {
    RVGPU_FROM_HANDLE(rvgpu_cmd_buffer, cmd_buffer, commandBuffer);
 }
+
+VKAPI_ATTR void VKAPI_CALL
+rvgpu_CmdPipelineBarrier2(VkCommandBuffer commandBuffer,
+                          const VkDependencyInfo *pDependencyInfo)
+{
+   RVGPU_FROM_HANDLE(rvgpu_cmd_buffer, cmd_buffer, commandBuffer);
+}
