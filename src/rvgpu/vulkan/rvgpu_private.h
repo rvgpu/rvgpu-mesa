@@ -53,6 +53,8 @@ extern const struct vk_command_buffer_ops rvgpu_cmd_buffer_ops;
 VK_DEFINE_HANDLE_CASTS(rvgpu_device, vk.base, VkDevice, VK_OBJECT_TYPE_DEVICE)
 VK_DEFINE_HANDLE_CASTS(rvgpu_instance, vk.base, VkInstance, VK_OBJECT_TYPE_INSTANCE)
 VK_DEFINE_HANDLE_CASTS(rvgpu_physical_device, vk.base, VkPhysicalDevice, VK_OBJECT_TYPE_PHYSICAL_DEVICE)
+VK_DEFINE_HANDLE_CASTS(rvgpu_cmd_buffer, vk.base, VkCommandBuffer, VK_OBJECT_TYPE_COMMAND_BUFFER)
+
 
 VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_buffer, vk.base, VkBuffer, VK_OBJECT_TYPE_BUFFER)
 VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_image, vk.base, VkImage, VK_OBJECT_TYPE_IMAGE)

@@ -72,3 +72,14 @@ const struct vk_command_buffer_ops rvgpu_cmd_buffer_ops = {
    .reset = rvgpu_reset_cmd_buffer,
    .destroy = rvgpu_destroy_cmd_buffer,
 };
+
+VKAPI_ATTR VkResult VKAPI_CALL
+rvgpu_BeginCommandBuffer(VkCommandBuffer commandBuffer, const VkCommandBufferBeginInfo *pBeginInfo)
+{
+   RVGPU_FROM_HANDLE(rvgpu_cmd_buffer, cmd_buffer, commandBuffer);
+   VkResult result = VK_SUCCESS;
+
+   vk_command_buffer_begin(&cmd_buffer->vk, pBeginInfo);
+
+   return result;
+}
