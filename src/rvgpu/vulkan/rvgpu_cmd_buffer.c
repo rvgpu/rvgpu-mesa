@@ -26,6 +26,7 @@
  */
 
 #include "vk_command_buffer.h"
+#include "vk_command_pool.h"
 
 #include "rvgpu_private.h"
 
@@ -33,6 +34,25 @@ static VkResult
 rvgpu_create_cmd_buffer(struct vk_command_pool *pool,
                         struct vk_command_buffer **cmd_buffer_out)
 {
+   struct rvgpu_device *device = container_of(pool->base.device, struct rvgpu_device, vk);
+
+   struct rvgpu_cmd_buffer *cmd_buffer;
+   cmd_buffer = vk_zalloc(&pool->alloc, sizeof(*cmd_buffer), 8,
+                          VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+   if (cmd_buffer == NULL)
+      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+
+   VkResult result =
+      vk_command_buffer_init(pool, &cmd_buffer->vk, &rvgpu_cmd_buffer_ops, 0);
+   if (result != VK_SUCCESS) {
+      vk_free(&cmd_buffer->vk.pool->alloc, cmd_buffer);
+      return result;
+   }
+
+   cmd_buffer->device = device;
+
+   *cmd_buffer_out = &cmd_buffer->vk;
+
    return VK_SUCCESS;
 }
 

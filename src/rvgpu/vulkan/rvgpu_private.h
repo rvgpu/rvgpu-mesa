@@ -38,6 +38,7 @@
 #include "rvgpu_image.h"
 #include "rvgpu_buffer.h"
 #include "rvgpu_device_memory.h"
+#include "rvgpu_cmd_buffer.h"
 
 #include "rvgpu_util.h"
 
