@@ -192,23 +192,6 @@ get_external_image_format_properties(struct rvgpu_physical_device *physical_devi
          break;
       }
       break;
-   case VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID:
-      if (!physical_device->vk.supported_extensions.ANDROID_external_memory_android_hardware_buffer)
-         break;
-
-      if (pImageFormatInfo->type != VK_IMAGE_TYPE_2D)
-         break;
-
-      format_properties->maxMipLevels = MIN2(1, format_properties->maxMipLevels);
-      format_properties->maxArrayLayers = MIN2(1, format_properties->maxArrayLayers);
-      format_properties->sampleCounts &= VK_SAMPLE_COUNT_1_BIT;
-
-      flags = VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT | VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT;
-      if (pImageFormatInfo->tiling != VK_IMAGE_TILING_LINEAR)
-         flags |= VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT;
-
-      compat_flags = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
-      break;
    case VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT:
       flags = VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT;
       compat_flags = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT;
@@ -419,7 +402,6 @@ rvgpu_GetPhysicalDeviceImageFormatProperties2(VkPhysicalDevice physicalDevice,
    RVGPU_FROM_HANDLE(rvgpu_physical_device, physical_device, physicalDevice);
    const VkPhysicalDeviceExternalImageFormatInfo *external_info = NULL;
    VkExternalImageFormatProperties *external_props = NULL;
-   struct VkAndroidHardwareBufferUsageANDROID *android_usage = NULL;
    VkSamplerYcbcrConversionImageFormatProperties *ycbcr_props = NULL;
    VkTextureLODGatherFormatPropertiesAMD *texture_lod_props = NULL;
    VkResult result;
@@ -453,7 +435,6 @@ rvgpu_GetPhysicalDeviceImageFormatProperties2(VkPhysicalDevice physicalDevice,
          ycbcr_props = (void *)s;
          break;
       case VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_USAGE_ANDROID:
-         android_usage = (void *)s;
          break;
       case VK_STRUCTURE_TYPE_TEXTURE_LOD_GATHER_FORMAT_PROPERTIES_AMD:
          texture_lod_props = (void *)s;
@@ -461,15 +442,6 @@ rvgpu_GetPhysicalDeviceImageFormatProperties2(VkPhysicalDevice physicalDevice,
       default:
          break;
       }
-   }
-
-   bool ahb_supported =
-      physical_device->vk.supported_extensions.ANDROID_external_memory_android_hardware_buffer;
-   if (android_usage && ahb_supported) {
-#if RADV_SUPPORT_ANDROID_HARDWARE_BUFFER
-      android_usage->androidHardwareBufferUsage =
-         vk_image_usage_to_ahb_usage(base_info->flags, base_info->usage);
-#endif
    }
 
    /* From the Vulkan 1.0.97 spec:
