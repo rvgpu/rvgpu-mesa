@@ -48,5 +48,6 @@ struct rvgpu_drm_device {
 typedef struct rvgpu_drm_device *rvgpu_drm_device_handle;
 
 int rvgpu_drm_device_initialize(int fd, uint32_t *major_version, uint32_t *minor_version, rvgpu_drm_device_handle *device_handle);
+void rvgpu_drm_device_deinitialize(rvgpu_drm_device_handle device_handle);
 
 #endif // DRM_IOCTL_H__

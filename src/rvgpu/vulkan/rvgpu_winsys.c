@@ -83,6 +83,6 @@ rvgpu_winsys_create(int fd, uint64_t debug_flags, uint64_t perftest_flags)
    return ws;
 
 fail:
-   // rvgpu_device_deinitialize(dev);
+   rvgpu_drm_device_deinitialize(dev);
    return NULL;
 }

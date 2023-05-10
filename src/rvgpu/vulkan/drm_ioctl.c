@@ -45,6 +45,8 @@ int rvgpu_drm_device_initialize(int fd,
       return -ENOMEM;
    }
 
+   dev->fd = fd;
+
    version = drmGetVersion(fd);
    *major_version = version->version_major;
    *minor_version = version->version_minor;
@@ -54,3 +56,9 @@ int rvgpu_drm_device_initialize(int fd,
    return 0;
 }
 
+void rvgpu_drm_device_deinitialize(rvgpu_drm_device_handle device_handle)
+{
+   struct rvgpu_drm_device *dev = device_handle;
+
+   drmClose(dev->fd);
+}
