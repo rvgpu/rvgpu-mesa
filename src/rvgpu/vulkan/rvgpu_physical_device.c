@@ -848,7 +848,7 @@ rvgpu_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
    rvgpu_GetPhysicalDeviceFeatures(physicalDevice, &pFeatures->features);
 }
 
-void
+VKAPI_ATTR void VKAPI_CALL
 rvgpu_GetPhysicalDeviceMemoryProperties2(VkPhysicalDevice physicalDevice, 
                                          VkPhysicalDeviceMemoryProperties2 *pMemoryProperties)
 {
