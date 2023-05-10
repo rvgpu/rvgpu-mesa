@@ -64,7 +64,6 @@ rvgpu_physical_device_try_create(struct rvgpu_instance *instance, drmDevicePtr d
 {
    VkResult result;
    int fd = -1;
-   int master_fd = -1;
 
    if (drm_device) {
       const char *path = drm_device->nodes[DRM_NODE_RENDER];
@@ -147,8 +146,6 @@ fail_alloc:
 fail_fd:
    if (fd != -1)
       close(fd);
-   if (master_fd != -1)
-      close(master_fd);
    return result;
 }
 
@@ -201,13 +198,7 @@ rvgpu_physical_device_destroy(struct vk_physical_device *vk_device)
    struct rvgpu_physical_device *device = container_of(vk_device, struct rvgpu_physical_device, vk);
 
    rvgpu_finish_wsi(device);
-   ac_destroy_perfcounters(&device->ac_perfcounters);
    rvgpu_winsys_destroy(device->ws);
-   // disk_cache_destroy(device->vk.disk_cache);
-   if (device->local_fd != -1)
-      close(device->local_fd);
-   if (device->master_fd != -1)
-      close(device->master_fd);
    vk_physical_device_finish(&device->vk);
    vk_free(&device->instance->vk.alloc, device);
 }
