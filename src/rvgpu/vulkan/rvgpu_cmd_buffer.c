@@ -83,3 +83,12 @@ rvgpu_BeginCommandBuffer(VkCommandBuffer commandBuffer, const VkCommandBufferBeg
 
    return result;
 }
+
+VKAPI_ATTR void VKAPI_CALL
+rvgpu_CmdBindVertexBuffers2(VkCommandBuffer commandBuffer, uint32_t firstBinding,
+                            uint32_t bindingCount, const VkBuffer *pBuffers,
+                            const VkDeviceSize *pOffsets, const VkDeviceSize *pSizes,
+                            const VkDeviceSize *pStrides)
+{
+   RVGPU_FROM_HANDLE(rvgpu_cmd_buffer, cmd_buffer, commandBuffer);
+}
