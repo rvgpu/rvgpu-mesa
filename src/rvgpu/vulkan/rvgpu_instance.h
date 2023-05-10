@@ -44,21 +44,6 @@ struct rvgpu_instance {
 
    uint64_t debug_flags;
    uint64_t perftest_flags; 
-
-   /**
-    * Workarounds for game bugs. 
-    */
-   bool enable_mrt_output_nan_fixup;
-   bool disable_tc_compat_htile_in_general;
-   bool disable_shrink_image_store;
-   bool absolute_depth_bias;
-   bool disable_aniso_single_level;
-   bool zero_vram;
-   bool disable_sinking_load_input_fs;
-   bool flush_before_query_copy;
-   bool enable_unified_heap_on_apu;
-   bool tex_non_uniform;
-   char *app_layer;
 };
 
 const char *rvgpu_get_debug_option_name(int id);

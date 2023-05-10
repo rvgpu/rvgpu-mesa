@@ -121,12 +121,6 @@ rvgpu_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
 
    instance->vk.physical_devices.destroy = rvgpu_physical_device_destroy;
 
-   // if (instance->debug_flags & RVGPU_DEBUG_STARTUP)
-   //   fprintf(stderr, "rvgpu: info: Created an instance.\n");
-  
-
-   // rvgpu_init_dri_options(instance);
-
    *pInstance = rvgpu_instance_to_handle(instance);
 
    return VK_SUCCESS;
