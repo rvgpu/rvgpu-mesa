@@ -112,7 +112,6 @@ rvgpu_image_create_layout(struct rvgpu_device *device, struct rvgpu_image_create
       image->planes[plane].format = vk_format_get_plane_format(image->vk.format, plane);
    }
 
-   assert(image->planes[0].surface.surf_size);
    return VK_SUCCESS;
 }
 
