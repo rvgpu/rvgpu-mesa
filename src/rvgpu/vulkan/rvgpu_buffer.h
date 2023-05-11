@@ -35,7 +35,6 @@
 struct rvgpu_buffer {
    struct vk_buffer vk;
 
-   /* Set when bound */
    struct rvgpu_winsys_bo *bo;
    VkDeviceSize offset;
 };
