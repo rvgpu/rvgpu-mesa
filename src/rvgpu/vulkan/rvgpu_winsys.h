@@ -203,15 +203,6 @@ struct rvgpu_winsys;
 struct rvgpu_winsys_ops {
    void (*destroy)(struct rvgpu_winsys *ws);
 
-   void (*query_info)(struct rvgpu_winsys *ws, struct radeon_info *info);
-
-   uint64_t (*query_value)(struct rvgpu_winsys *ws, enum radeon_value_id value);
-
-   bool (*read_registers)(struct rvgpu_winsys *ws, unsigned reg_offset, unsigned num_registers,
-                          uint32_t *out);
-
-   const char *(*get_chip_name)(struct rvgpu_winsys *ws);
-
    VkResult (*buffer_create)(struct rvgpu_winsys *ws, uint64_t size, unsigned alignment,
                              enum radeon_bo_domain domain, enum radeon_bo_flag flags,
                              unsigned priority, uint64_t address, struct rvgpu_winsys_bo **out_bo);
@@ -225,76 +216,15 @@ struct rvgpu_winsys_ops {
    VkResult (*buffer_from_fd)(struct rvgpu_winsys *ws, int fd, unsigned priority,
                               struct rvgpu_winsys_bo **out_bo, uint64_t *alloc_size);
 
-   bool (*buffer_get_fd)(struct rvgpu_winsys *ws, struct rvgpu_winsys_bo *bo, int *fd);
-
-   bool (*buffer_get_flags_from_fd)(struct rvgpu_winsys *ws, int fd,
-                                    enum radeon_bo_domain *domains, enum radeon_bo_flag *flags);
-
-   void (*buffer_unmap)(struct rvgpu_winsys_bo *bo);
-
-   void (*buffer_set_metadata)(struct rvgpu_winsys *ws, struct rvgpu_winsys_bo *bo,
-                               struct radeon_bo_metadata *md);
-   void (*buffer_get_metadata)(struct rvgpu_winsys *ws, struct rvgpu_winsys_bo *bo,
-                               struct radeon_bo_metadata *md);
-
-   VkResult (*buffer_virtual_bind)(struct rvgpu_winsys *ws, struct rvgpu_winsys_bo *parent,
-                                   uint64_t offset, uint64_t size, struct rvgpu_winsys_bo *bo,
-                                   uint64_t bo_offset);
-
-   VkResult (*buffer_make_resident)(struct rvgpu_winsys *ws, struct rvgpu_winsys_bo *bo,
-                                    bool resident);
-
-   VkResult (*ctx_create)(struct rvgpu_winsys *ws, enum rvgpu_ctx_priority priority,
-                          struct rvgpu_winsys_ctx **ctx);
-   void (*ctx_destroy)(struct rvgpu_winsys_ctx *ctx);
-
-   bool (*ctx_wait_idle)(struct rvgpu_winsys_ctx *ctx, enum amd_ip_type amd_ip_type, int ring_index);
-
-   int (*ctx_set_pstate)(struct rvgpu_winsys_ctx *ctx, uint32_t pstate);
-
-   enum rvgpu_reset_status (*ctx_query_reset_status)(struct rvgpu_winsys_ctx *rwctx);
-
-   enum radeon_bo_domain (*cs_domain)(const struct rvgpu_winsys *ws);
-
-   struct radeon_cmdbuf *(*cs_create)(struct rvgpu_winsys *ws, enum amd_ip_type amd_ip_type,
-                                      bool is_secondary);
-
-   void (*cs_destroy)(struct radeon_cmdbuf *cs);
-
-   void (*cs_reset)(struct radeon_cmdbuf *cs);
-
-   bool (*cs_chain)(struct radeon_cmdbuf *cs, struct radeon_cmdbuf *next_cs, bool pre_en);
-
-   void (*cs_unchain)(struct radeon_cmdbuf *cs);
-
-   VkResult (*cs_finalize)(struct radeon_cmdbuf *cs);
-
-   void (*cs_grow)(struct radeon_cmdbuf *cs, size_t min_size);
-
-   VkResult (*cs_submit)(struct rvgpu_winsys_ctx *ctx,
-                         const struct rvgpu_winsys_submit_info *submit, uint32_t wait_count,
-                         const struct vk_sync_wait *waits, uint32_t signal_count,
-                         const struct vk_sync_signal *signals);
-
-   void (*cs_add_buffer)(struct radeon_cmdbuf *cs, struct rvgpu_winsys_bo *bo);
-
-   void (*cs_execute_secondary)(struct radeon_cmdbuf *parent, struct radeon_cmdbuf *child,
-                                bool allow_ib2);
-
-   void (*cs_dump)(struct radeon_cmdbuf *cs, FILE *file, const int *trace_ids, int trace_id_count);
-
-   void (*dump_bo_ranges)(struct rvgpu_winsys *ws, FILE *file);
-
-   void (*dump_bo_log)(struct rvgpu_winsys *ws, FILE *file);
-
    int (*surface_init)(struct rvgpu_winsys *ws, const struct rvgpu_surf_info *surf_info,
                        struct rvgpu_surf *surf);
 
-   int (*get_fd)(struct rvgpu_winsys *ws);
-
-   struct ac_addrlib *(*get_addrlib)(struct rvgpu_winsys *ws);
-
    const struct vk_sync_type *const *(*get_sync_types)(struct rvgpu_winsys *ws);
+
+   /* new interface reference imagination */
+   VkResult (*import_bo)(struct rvgpu_winsys *ws, struct rvgpu_winsys_bo **out_bo);
+   VkResult (*create_bo)(struct rvgpu_winsys *ws, uint64_t size, uint32_t flags, struct rvgpu_winsys_bo **out_bo);
+
 };
 
 struct rvgpu_winsys {
