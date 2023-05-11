@@ -156,8 +156,7 @@ rvgpu_GetImageMemoryRequirements2(VkDevice _device, const VkImageMemoryRequireme
    RVGPU_FROM_HANDLE(rvgpu_image, image, pInfo->image);
 
    pMemoryRequirements->memoryRequirements.memoryTypeBits =
-      ((1u << device->physical_device->memory_properties.memoryTypeCount) - 1u) &
-      ~device->physical_device->memory_types_32bit;
+      ((1u << device->physical_device->memory_properties.memoryTypeCount) - 1u);
 
    pMemoryRequirements->memoryRequirements.size = image->size;
    pMemoryRequirements->memoryRequirements.alignment = image->alignment;

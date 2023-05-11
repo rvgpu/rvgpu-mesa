@@ -55,9 +55,6 @@ struct rvgpu_physical_device {
 
    VkPhysicalDeviceMemoryProperties memory_properties;
 
-   /* Bitmask of memory types that use the 32-bit address space. */
-   uint32_t memory_types_32bit;
-
    enum rvgpu_queue_family vk_queue_to_rvgpu[RVGPU_MAX_QUEUE_FAMILIES];
    uint32_t num_queues;
 

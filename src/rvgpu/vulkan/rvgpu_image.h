@@ -38,18 +38,6 @@
  */
 #define MAX_MIP_LEVELS (14)
 
-
-struct rvgpu_image_binding {
-   /* Set when bound */
-   struct rvgpu_winsys_bo *bo;
-   VkDeviceSize offset;
-};
-
-struct rvgpu_image_plane {
-   VkFormat format;
-   struct rvgpu_surf surface;
-}; 
-
 struct rvgpu_image_slice_layout {
    unsigned offset;
 
@@ -82,12 +70,10 @@ struct rvgpu_image_layout {
    enum rvgpu_texture_dimension dim;
    unsigned nr_slices;
    unsigned array_size;
-   bool crc;
 
    /* The remaining fields may be derived from the above by calling
     * pan_image_layout_init
     */ 
-
    struct rvgpu_image_slice_layout slices[MAX_MIP_LEVELS];
 
    unsigned data_size;

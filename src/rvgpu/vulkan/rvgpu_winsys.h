@@ -33,7 +33,6 @@
 
 #include "drm_ioctl.h"
 
-#include "rvgpu_gpuinfo.h"
 #include "rvgpu_winsys_surface.h"
 
 enum rvgpu_ctx_priority {
