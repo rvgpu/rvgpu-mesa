@@ -39,42 +39,12 @@ rvgpu_get_buffer_memory_requirements(struct rvgpu_device *device, VkDeviceSize s
                                      VkMemoryRequirements2 *pMemoryRequirements)
 {
    pMemoryRequirements->memoryRequirements.memoryTypeBits =
-      ((1u << device->physical_device->memory_properties.memoryTypeCount) - 1u) &
-      ~device->physical_device->memory_types_32bit;
-
-   /* Allow 32-bit address-space for DGC usage, as this buffer will contain
-    * cmd buffer upload buffers, and those get passed to shaders through 32-bit
-    * pointers.
-    *
-    * We only allow it with this usage set, to "protect" the 32-bit address space
-    * from being overused. The actual requirement is done as part of
-    * vkGetGeneratedCommandsMemoryRequirementsNV. (we have to make sure their
-    * intersection is non-zero at least)
-    */
-   if (usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT)
-      pMemoryRequirements->memoryRequirements.memoryTypeBits |=
-         device->physical_device->memory_types_32bit;
-
-   /* Force 32-bit address-space for descriptor buffers usage because they are passed to shaders
-    * through 32-bit pointers.
-    */
-   if (usage & (VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT |
-                VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT))
-      pMemoryRequirements->memoryRequirements.memoryTypeBits =
-         device->physical_device->memory_types_32bit;
+      ((1u << device->physical_device->memory_properties.memoryTypeCount) - 1u);
 
    if (flags & VK_BUFFER_CREATE_SPARSE_BINDING_BIT)
       pMemoryRequirements->memoryRequirements.alignment = 4096;
    else
       pMemoryRequirements->memoryRequirements.alignment = 16;
-
-   /* Top level acceleration structures need the bottom 6 bits to store
-    * the root ids of instances. The hardware also needs bvh nodes to
-    * be 64 byte aligned.
-    */
-   if (usage & VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR)
-      pMemoryRequirements->memoryRequirements.alignment =
-         MAX2(pMemoryRequirements->memoryRequirements.alignment, 64);
 
    pMemoryRequirements->memoryRequirements.size =
       align64(size, pMemoryRequirements->memoryRequirements.alignment);
