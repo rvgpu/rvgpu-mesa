@@ -352,8 +352,8 @@ rvgpu_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
          break;
       }
       case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PCI_BUS_INFO_PROPERTIES_EXT: {
-         VkPhysicalDevicePCIBusInfoPropertiesEXT *properties =
-            (VkPhysicalDevicePCIBusInfoPropertiesEXT *)ext;
+         // VkPhysicalDevicePCIBusInfoPropertiesEXT *properties =
+         //    (VkPhysicalDevicePCIBusInfoPropertiesEXT *)ext;
          // properties->pciDomain = pdevice->bus_info.domain;
          // properties->pciBus = pdevice->bus_info.bus;
          // properties->pciDevice = pdevice->bus_info.dev;
@@ -498,8 +498,8 @@ rvgpu_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
          break;
       }
       case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_MODULE_IDENTIFIER_PROPERTIES_EXT: {
-         VkPhysicalDeviceShaderModuleIdentifierPropertiesEXT *properties =
-            (VkPhysicalDeviceShaderModuleIdentifierPropertiesEXT *)ext;
+         // VkPhysicalDeviceShaderModuleIdentifierPropertiesEXT *properties =
+         //   (VkPhysicalDeviceShaderModuleIdentifierPropertiesEXT *)ext;
          // STATIC_ASSERT(sizeof(vk_shaderModuleIdentifierAlgorithmUUID) ==
          //              sizeof(properties->shaderModuleIdentifierAlgorithmUUID));
          //memcpy(properties->shaderModuleIdentifierAlgorithmUUID,

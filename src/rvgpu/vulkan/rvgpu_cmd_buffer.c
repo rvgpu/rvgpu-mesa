@@ -90,29 +90,29 @@ rvgpu_CmdBindVertexBuffers2(VkCommandBuffer commandBuffer, uint32_t firstBinding
                             const VkDeviceSize *pOffsets, const VkDeviceSize *pSizes,
                             const VkDeviceSize *pStrides)
 {
-   RVGPU_FROM_HANDLE(rvgpu_cmd_buffer, cmd_buffer, commandBuffer);
+   // RVGPU_FROM_HANDLE(rvgpu_cmd_buffer, cmd_buffer, commandBuffer);
 }
 
 VKAPI_ATTR void VKAPI_CALL
 rvgpu_CmdPipelineBarrier2(VkCommandBuffer commandBuffer,
                           const VkDependencyInfo *pDependencyInfo)
 {
-   RVGPU_FROM_HANDLE(rvgpu_cmd_buffer, cmd_buffer, commandBuffer);
+   // RVGPU_FROM_HANDLE(rvgpu_cmd_buffer, cmd_buffer, commandBuffer);
 }
 
 VKAPI_ATTR void VKAPI_CALL
 rvgpu_CmdCopyImageToBuffer2(VkCommandBuffer commandBuffer,
                             const VkCopyImageToBufferInfo2 *pCopyImageToBufferInfo)
 {
-   RVGPU_FROM_HANDLE(rvgpu_cmd_buffer, cmd_buffer, commandBuffer);
-   RVGPU_FROM_HANDLE(rvgpu_image, src_image, pCopyImageToBufferInfo->srcImage);
-   RVGPU_FROM_HANDLE(rvgpu_buffer, dst_buffer, pCopyImageToBufferInfo->dstBuffer);
+   // RVGPU_FROM_HANDLE(rvgpu_cmd_buffer, cmd_buffer, commandBuffer);
+   // RVGPU_FROM_HANDLE(rvgpu_image, src_image, pCopyImageToBufferInfo->srcImage);
+   // RVGPU_FROM_HANDLE(rvgpu_buffer, dst_buffer, pCopyImageToBufferInfo->dstBuffer);
 
-   for (unsigned r = 0; r < pCopyImageToBufferInfo->regionCount; r++) {
+   // for (unsigned r = 0; r < pCopyImageToBufferInfo->regionCount; r++) {
       // copy_image_to_buffer(cmd_buffer, dst_buffer, src_image,
       //                     pCopyImageToBufferInfo->srcImageLayout,
       //                     &pCopyImageToBufferInfo->pRegions[r]);
-   }
+   // }
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL

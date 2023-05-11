@@ -37,11 +37,7 @@ rvgpu_winsys_bo_create(struct rvgpu_winsys *ws, uint64_t size, unsigned alignmen
                        struct rvgpu_winsys_bo **out_bo)
 {
    struct rvgpu_winsys_bo *bo;
-   struct rvgpu_bo_alloc_request request = {0};
-   struct rvgpu_map_range *ranges = NULL;
    uint64_t va = 0;
-   int r;
-   VkResult result = VK_SUCCESS;
 
    /* Just be robust for callers that might use NULL-ness for determining if things should be freed.
     */
@@ -51,8 +47,6 @@ rvgpu_winsys_bo_create(struct rvgpu_winsys *ws, uint64_t size, unsigned alignmen
    if (!bo) {
       return VK_ERROR_OUT_OF_HOST_MEMORY;
    }
-
-   unsigned virt_alignment = alignment;
 
    assert(!replay_address || (flags & RADEON_FLAG_REPLAYABLE));
 
@@ -68,7 +62,6 @@ rvgpu_winsys_bo_create(struct rvgpu_winsys *ws, uint64_t size, unsigned alignmen
 static void *
 rvgpu_winsys_bo_map(struct rvgpu_winsys_bo *bo)
 {
-   int ret;
    void *data;
    data = (void *)bo->va;
 

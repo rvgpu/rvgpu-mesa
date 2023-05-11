@@ -157,7 +157,7 @@ get_external_image_format_properties(struct rvgpu_physical_device *physical_devi
    VkExternalMemoryFeatureFlagBits flags = 0;
    VkExternalMemoryHandleTypeFlags export_flags = 0;
    VkExternalMemoryHandleTypeFlags compat_flags = 0;
-   const struct util_format_description *desc = vk_format_description(pImageFormatInfo->format);
+   // const struct util_format_description *desc = vk_format_description(pImageFormatInfo->format);
 
    if (pImageFormatInfo->flags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT)
       return;
@@ -403,7 +403,7 @@ rvgpu_GetPhysicalDeviceImageFormatProperties2(VkPhysicalDevice physicalDevice,
    const VkPhysicalDeviceExternalImageFormatInfo *external_info = NULL;
    VkExternalImageFormatProperties *external_props = NULL;
    VkSamplerYcbcrConversionImageFormatProperties *ycbcr_props = NULL;
-   VkTextureLODGatherFormatPropertiesAMD *texture_lod_props = NULL;
+   // VkTextureLODGatherFormatPropertiesAMD *texture_lod_props = NULL;
    VkResult result;
    VkFormat format = base_info->format;
 
@@ -437,7 +437,7 @@ rvgpu_GetPhysicalDeviceImageFormatProperties2(VkPhysicalDevice physicalDevice,
       case VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_USAGE_ANDROID:
          break;
       case VK_STRUCTURE_TYPE_TEXTURE_LOD_GATHER_FORMAT_PROPERTIES_AMD:
-         texture_lod_props = (void *)s;
+         // texture_lod_props = (void *)s;
          break;
       default:
          break;

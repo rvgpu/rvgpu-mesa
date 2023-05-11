@@ -99,7 +99,7 @@ rvgpu_image_layout_init(struct rvgpu_image_layout *layout)
 static VkResult
 rvgpu_image_create(VkDevice _device, const VkImageCreateInfo *pCreateInfo,
                    const VkAllocationCallbacks *alloc, VkImage *pImage,
-                   uint64_t modifier, const VkSubresourceLayout *plane_layouts)
+                   uint64_t modifier)
 {
    RVGPU_FROM_HANDLE(rvgpu_device, device, _device);
    struct rvgpu_image *image = NULL;
@@ -143,6 +143,5 @@ rvgpu_CreateImage(VkDevice _device, const VkImageCreateInfo *pCreateInfo,
                                                pImage);
    }
 
-   const VkSubresourceLayout *plane_layouts;
-   return rvgpu_image_create(_device, pCreateInfo, pAllocator, pImage, DRM_FORMAT_MOD_LINEAR, plane_layouts);
+   return rvgpu_image_create(_device, pCreateInfo, pAllocator, pImage, DRM_FORMAT_MOD_LINEAR);
 }

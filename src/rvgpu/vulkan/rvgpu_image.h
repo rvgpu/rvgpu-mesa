@@ -119,11 +119,6 @@ static VkResult rvgpu_image_create(VkDevice _device,
                                    const VkImageCreateInfo *pCreateInfo,
                                    const VkAllocationCallbacks *alloc, 
                                    VkImage *pImage,
-                                   uint64_t modifier, 
-                                   const VkSubresourceLayout *plane_layouts);
-
-VkResult rvgpu_image_create_layout(struct rvgpu_device *device, 
-                                   struct rvgpu_image_create_info create_info, 
-                                   struct rvgpu_image *image);
+                                   uint64_t modifier);
 
 #endif // RVGPU_IMAGE_H__
