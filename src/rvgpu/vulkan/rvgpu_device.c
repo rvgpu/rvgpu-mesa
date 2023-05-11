@@ -167,8 +167,7 @@ rvgpu_GetImageMemoryRequirements2(VkDevice _device, const VkImageMemoryRequireme
       switch (ext->sType) {
       case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS: {
          VkMemoryDedicatedRequirements *req = (VkMemoryDedicatedRequirements *)ext;
-         req->requiresDedicatedAllocation =
-            image->shareable && image->vk.tiling != VK_IMAGE_TILING_LINEAR;
+         req->requiresDedicatedAllocation = image->vk.tiling != VK_IMAGE_TILING_LINEAR;
          req->prefersDedicatedAllocation = req->requiresDedicatedAllocation;
          break;
       }
@@ -182,66 +181,15 @@ VKAPI_ATTR VkResult VKAPI_CALL
 rvgpu_BindImageMemory2(VkDevice _device, uint32_t bindInfoCount,
                        const VkBindImageMemoryInfo *pBindInfos)
 {
-   RVGPU_FROM_HANDLE(rvgpu_device, device, _device);
-
    for (uint32_t i = 0; i < bindInfoCount; ++i) {
-      RVGPU_FROM_HANDLE(rvgpu_device_memory, mem, pBindInfos[i].memory);
       RVGPU_FROM_HANDLE(rvgpu_image, image, pBindInfos[i].image);
+      RVGPU_FROM_HANDLE(rvgpu_device_memory, mem, pBindInfos[i].memory);
 
-      const VkBindImageMemorySwapchainInfoKHR *swapchain_info =
-         vk_find_struct_const(pBindInfos[i].pNext, BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR);
-
-      if (swapchain_info && swapchain_info->swapchain != VK_NULL_HANDLE) {
-         struct rvgpu_image *swapchain_img =
-            rvgpu_image_from_handle(wsi_common_get_image(
-                                   swapchain_info->swapchain, swapchain_info->imageIndex));
-
-         image->bindings[0].bo = swapchain_img->bindings[0].bo;
-         image->bindings[0].offset = swapchain_img->bindings[0].offset;
-         continue;
-      }
-
-      if (mem->alloc_size) {
-         VkImageMemoryRequirementsInfo2 info = {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
-            .image = pBindInfos[i].image,
-         };
-         VkMemoryRequirements2 reqs = {
-            .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
-         };
-
-         rvgpu_GetImageMemoryRequirements2(_device, &info, &reqs);
-
-         if (pBindInfos[i].memoryOffset + reqs.memoryRequirements.size > mem->alloc_size) {
-            return vk_errorf(device, VK_ERROR_UNKNOWN,
-                             "Device memory object too small for the image.\n");
-         }
-      }
-
-      if (image->disjoint) {
-         const VkBindImagePlaneMemoryInfo *plane_info =
-            vk_find_struct_const(pBindInfos[i].pNext, BIND_IMAGE_PLANE_MEMORY_INFO);
-
-         switch (plane_info->planeAspect) {
-            case VK_IMAGE_ASPECT_PLANE_0_BIT:
-               image->bindings[0].bo = mem->bo;
-               image->bindings[0].offset = pBindInfos[i].memoryOffset;
-               break;
-            case VK_IMAGE_ASPECT_PLANE_1_BIT:
-               image->bindings[1].bo = mem->bo;
-               image->bindings[1].offset = pBindInfos[i].memoryOffset;
-               break;
-            case VK_IMAGE_ASPECT_PLANE_2_BIT:
-               image->bindings[2].bo = mem->bo;
-               image->bindings[2].offset = pBindInfos[i].memoryOffset;
-               break;
-            default:
-               break;
-         }
-      } else {
-         image->bindings[0].bo = mem->bo;
-         image->bindings[0].offset = pBindInfos[i].memoryOffset;
+      if (mem) {
+         image->bo = mem->bo;
+         image->offset = pBindInfos[i].memoryOffset;
       }
    }
+
    return VK_SUCCESS;
 }

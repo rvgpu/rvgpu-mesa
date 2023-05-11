@@ -99,7 +99,7 @@ struct rvgpu_image {
    struct vk_image vk;
 
    /* Image Memory */
-   struct rvgpu_bo *bo;
+   struct rvgpu_winsys_bo *bo;
    unsigned offset;
 
    /* Image Layout */
@@ -107,12 +107,6 @@ struct rvgpu_image {
 
    VkDeviceSize size;
    uint32_t alignment;
-
-   bool shareable;
-
-   struct rvgpu_image_binding bindings[3];
-
-   bool disjoint;
 };
 
 static VkResult rvgpu_image_create(VkDevice _device, 
