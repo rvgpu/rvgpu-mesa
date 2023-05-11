@@ -105,47 +105,15 @@ struct rvgpu_image {
    /* Image Layout */
    struct rvgpu_image_layout layout;
 
-   struct rvgpu_surf_info info;
    VkDeviceSize size;
    uint32_t alignment;
 
-   unsigned queue_family_mask;
-   bool exclusive;
    bool shareable;
-   bool l2_coherent;
-   bool dcc_sign_reinterpret;
-   bool support_comp_to_single;
 
    struct rvgpu_image_binding bindings[3];
-   bool tc_compatible_cmask;
 
-   uint64_t clear_value_offset;
-   uint64_t fce_pred_offset;
-   uint64_t dcc_pred_offset;
-
-   /*
-    * Metadata for the TC-compat zrange workaround. If the 32-bit value
-    * stored at this offset is UINT_MAX, the driver will emit
-    * DB_Z_INFO.ZRANGE_PRECISION=0, otherwise it will skip the
-    * SET_CONTEXT_REG packet.
-    */
-   uint64_t tc_compat_zrange_offset;
-
-   /* For VK_ANDROID_native_buffer, the WSI image owns the memory, */
-   VkDeviceMemory owned_memory;
-
-   unsigned plane_count;
    bool disjoint;
-   struct rvgpu_image_plane planes[0];
 };
-
-struct rvgpu_image_create_info {
-   const VkImageCreateInfo *vk_info;
-   bool scanout;
-   bool no_metadata_planes;
-   bool prime_blit_src;
-}; 
-   
 
 static VkResult rvgpu_image_create(VkDevice _device, 
                                    const VkImageCreateInfo *pCreateInfo,
