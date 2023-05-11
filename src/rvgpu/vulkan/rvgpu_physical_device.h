@@ -54,8 +54,6 @@ struct rvgpu_physical_device {
    struct wsi_device wsi_device;
 
    VkPhysicalDeviceMemoryProperties memory_properties;
-   enum radeon_bo_domain memory_domains[VK_MAX_MEMORY_TYPES];
-   enum radeon_bo_flag memory_flags[VK_MAX_MEMORY_TYPES];
 
    /* Bitmask of memory types that use the 32-bit address space. */
    uint32_t memory_types_32bit;
