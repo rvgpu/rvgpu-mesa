@@ -32,6 +32,13 @@
 
 #include "rvgpu_winsys.h"
 
+/* hardware can texture up to 65536 x 65536 x 65536 and render up to 16384
+ * x 16384, but 8192 x 8192 should be enough for anyone.  The OpenGL game
+ * "Cathedral" requires a texture of width 8192 to start.
+ */
+#define MAX_MIP_LEVELS (14)
+
+
 struct rvgpu_image_binding {
    /* Set when bound */
    struct rvgpu_winsys_bo *bo;
@@ -43,8 +50,60 @@ struct rvgpu_image_plane {
    struct rvgpu_surf surface;
 }; 
 
+struct rvgpu_image_slice_layout {
+   unsigned offset;
+
+   /* 
+    * For an images, the number of bytes between two rows of texels.
+    * For linear images, this will equal the logical stride. For
+    * images that are compressed or interleaved, this will be greater than
+    * the logical stride.
+    */
+   unsigned row_stride;
+
+   unsigned surface_stride;
+
+   unsigned size;
+};
+
+enum rvgpu_texture_dimension
+{
+   RVGPU_TEXTURE_DIMENSION_1D = 0,
+   RVGPU_TEXTURE_DIMENSION_2D = 1,
+   RVGPU_TEXTURE_DIMENSION_3D = 2,
+   RVGPU_TEXTURE_DIMENSION_MAX_ENUM = 0x7FFFFFFF
+};
+
+struct rvgpu_image_layout {
+   uint64_t modifier;
+   enum pipe_format format;
+   unsigned width, height, depth;
+   unsigned nr_samples;
+   enum rvgpu_texture_dimension dim;
+   unsigned nr_slices;
+   unsigned array_size;
+   bool crc;
+
+   /* The remaining fields may be derived from the above by calling
+    * pan_image_layout_init
+    */ 
+
+   struct rvgpu_image_slice_layout slices[MAX_MIP_LEVELS];
+
+   unsigned data_size;
+   unsigned array_stride;
+
+};
+
 struct rvgpu_image {
    struct vk_image vk;
+
+   /* Image Memory */
+   struct rvgpu_bo *bo;
+   unsigned offset;
+
+   /* Image Layout */
+   struct rvgpu_image_layout layout;
 
    struct rvgpu_surf_info info;
    VkDeviceSize size;
@@ -87,11 +146,13 @@ struct rvgpu_image_create_info {
    bool prime_blit_src;
 }; 
    
-VkResult rvgpu_image_create(VkDevice _device, 
-                            const struct rvgpu_image_create_info *info,
-                            const VkAllocationCallbacks *alloc, 
-                            VkImage *pImage, 
-                            bool is_internal);
+
+static VkResult rvgpu_image_create(VkDevice _device, 
+                                   const VkImageCreateInfo *pCreateInfo,
+                                   const VkAllocationCallbacks *alloc, 
+                                   VkImage *pImage,
+                                   uint64_t modifier, 
+                                   const VkSubresourceLayout *plane_layouts);
 
 VkResult rvgpu_image_create_layout(struct rvgpu_device *device, 
                                    struct rvgpu_image_create_info create_info, 

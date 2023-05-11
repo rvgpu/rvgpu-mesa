@@ -25,159 +25,104 @@
  * IN THE SOFTWARE.
  */
 
+#include "drm-uapi/drm_fourcc.h"
+
 #include "vk_format.h"
 #include "vk_util.h"
 #include "vk_log.h"
 
 #include "rvgpu_private.h"
 
-static void
-rvgpu_destroy_image(struct rvgpu_device *device, const VkAllocationCallbacks *pAllocator,
-                    struct rvgpu_image *image)
+static bool
+rvgpu_image_layout_init(struct rvgpu_image_layout *layout)
 {
-   if ((image->vk.create_flags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT) && image->bindings[0].bo) {
-      device->ws->ops.buffer_destroy(device->ws, image->bindings[0].bo);
-   }
+   unsigned fmt_blocksize = util_format_get_blocksize(layout->format);
+   /* MSAA is implemented as a 3D texture with z corresponding to the
+    * sample #, horrifyingly enough */
+   assert(layout->depth == 1 || layout->nr_samples == 1);
+   bool linear = layout->modifier == DRM_FORMAT_MOD_LINEAR;
 
-   if (image->owned_memory != VK_NULL_HANDLE) {
-      RVGPU_FROM_HANDLE(rvgpu_device_memory, mem, image->owned_memory);
-      rvgpu_free_memory(device, pAllocator, mem);
-   }
+   unsigned offset = 0;
 
-   vk_image_finish(&image->vk);
-   vk_free2(&device->vk.alloc, pAllocator, image);
-}
+   unsigned width = layout->width;
+   unsigned height = layout->height;
+   unsigned depth = layout->depth;
 
-static void
-rvgpu_image_reset_layout(const struct rvgpu_physical_device *pdev, struct rvgpu_image *image)
-{
-   image->size = 0;
-   image->alignment = 1;
+   unsigned align_w = 1;
+   unsigned align_h = 1;
 
-   image->tc_compatible_cmask = 0;
-   image->fce_pred_offset = image->dcc_pred_offset = 0;
-   image->clear_value_offset = image->tc_compat_zrange_offset = 0;
+   for (unsigned l = 0; l < layout->nr_slices; ++l) {
+      struct rvgpu_image_slice_layout *slice = &layout->slices[l];
 
-   unsigned plane_count = vk_format_get_plane_count(image->vk.format);
-   for (unsigned i = 0; i < plane_count; ++i) {
-      VkFormat format = vk_format_get_plane_format(image->vk.format, i);
-      if (vk_format_has_depth(format))
-         format = vk_format_depth_only(format);
+      unsigned effective_width =
+         ALIGN_POT(util_format_get_nblocksx(layout->format, width), align_w);
+      unsigned effective_height =
+         ALIGN_POT(util_format_get_nblocksy(layout->format, height), align_h);
 
-      uint64_t flags = image->planes[i].surface.flags;
-      uint64_t modifier = image->planes[i].surface.modifier;
-      memset(image->planes + i, 0, sizeof(image->planes[i]));
+      /* Align levels to cache-line as a performance improvement for
+       * linear/tiled and as a requirement for AFBC */
 
-      image->planes[i].surface.flags = flags;
-      image->planes[i].surface.modifier = modifier;
-      image->planes[i].surface.blk_w = vk_format_get_blockwidth(format);
-      image->planes[i].surface.blk_h = vk_format_get_blockheight(format);
-      image->planes[i].surface.bpe = vk_format_get_blocksize(format);
+      offset = ALIGN_POT(offset, 64);
 
-      /* align byte per element on dword */
-      if (image->planes[i].surface.bpe == 3) {
-         image->planes[i].surface.bpe = 4;
+      slice->offset = offset;
+
+      unsigned row_stride = fmt_blocksize * effective_width;
+
+      if (linear) {
+         /* Keep lines alignment on 64 byte for performance */
+         row_stride = ALIGN_POT(row_stride, 64);
       }
-   }
-}
 
-VkResult
-rvgpu_image_create_layout(struct rvgpu_device *device, struct rvgpu_image_create_info create_info,
-                          struct rvgpu_image *image)
-{
-   /* Clear the pCreateInfo pointer so we catch issues in the delayed case when we test in the
-    * common internal case. */
-   create_info.vk_info = NULL;
+      unsigned slice_one_size = row_stride * effective_height;
 
-   struct rvgpu_surf_info image_info = image->info;
-   rvgpu_image_reset_layout(device->physical_device, image);
+      slice->row_stride = row_stride;
 
-   unsigned plane_count = vk_format_get_plane_count(image->vk.format);
-   for (unsigned plane = 0; plane < plane_count; ++plane) {
-      struct rvgpu_surf_info info = image_info;
-      uint64_t offset;
-      unsigned stride;
+      unsigned slice_full_size = slice_one_size * depth * layout->nr_samples;
 
-      info.width = util_format_get_plane_width(vk_format_to_pipe_format(image->vk.format), plane, info.width);
-      info.height = util_format_get_plane_height(vk_format_to_pipe_format(image->vk.format), plane, info.height);
+      slice->surface_stride = slice_one_size;
 
-      device->ws->ops.surface_init(device->ws, &info, &image->planes[plane].surface);
+      offset += slice_full_size;
+      slice->size = slice_full_size;
 
-      offset = image->disjoint ? 0 : align64(image->size, 1ull << image->planes[plane].surface.alignment_log2);
-      stride = 0; /* 0 means no override */
-
-      image->size = MAX2(image->size, offset + image->planes[plane].surface.total_size);
-      image->alignment = MAX2(image->alignment, 1 << image->planes[plane].surface.alignment_log2);
-
-      image->planes[plane].format = vk_format_get_plane_format(image->vk.format, plane);
+      width = u_minify(width, 1);
+      height = u_minify(height, 1);
+      depth = u_minify(depth, 1);
    }
 
-   return VK_SUCCESS;
+   /* Arrays and cubemaps have the entire miptree duplicated */
+   layout->array_stride = ALIGN_POT(offset, 64);
+   layout->data_size = ALIGN_POT(layout->array_stride * layout->array_size, 4096);
+
+   return true;
 }
 
-VkResult
-rvgpu_image_create(VkDevice _device, const struct rvgpu_image_create_info *create_info,
-                   const VkAllocationCallbacks *alloc, VkImage *pImage, bool is_internal)
+static VkResult
+rvgpu_image_create(VkDevice _device, const VkImageCreateInfo *pCreateInfo,
+                   const VkAllocationCallbacks *alloc, VkImage *pImage,
+                   uint64_t modifier, const VkSubresourceLayout *plane_layouts)
 {
    RVGPU_FROM_HANDLE(rvgpu_device, device, _device);
-   const VkImageCreateInfo *pCreateInfo = create_info->vk_info;
    struct rvgpu_image *image = NULL;
-   VkFormat format = pCreateInfo->format;
-   assert(pCreateInfo->sType == VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO);
 
-   unsigned plane_count = vk_format_get_plane_count(format);
-
-   const size_t image_struct_size = sizeof(*image) + sizeof(struct rvgpu_image_plane) * plane_count;
-
-   assert(pCreateInfo->mipLevels > 0);
-   assert(pCreateInfo->arrayLayers > 0);
-   assert(pCreateInfo->samples > 0);
-   assert(pCreateInfo->extent.width > 0);
-   assert(pCreateInfo->extent.height > 0);
-   assert(pCreateInfo->extent.depth > 0);
-
-   image =
-      vk_zalloc2(&device->vk.alloc, alloc, image_struct_size, 8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+   image = vk_image_create(&device->vk, pCreateInfo, alloc, sizeof(*image));
    if (!image)
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
-   vk_image_init(&device->vk, &image->vk, pCreateInfo);
+   image->layout = (struct rvgpu_image_layout){
+      .modifier = modifier,
+      .format = vk_format_to_pipe_format(image->vk.format),
+      .dim = image->vk.image_type,
+      .width = image->vk.extent.width,
+      .height = image->vk.extent.height,
+      .depth = image->vk.extent.depth,
+      .array_size = image->vk.array_layers,
+      .nr_samples = image->vk.samples,
+      .nr_slices = image->vk.mip_levels,
+   };
 
-   image->info.width = pCreateInfo->extent.width;
-   image->info.height = pCreateInfo->extent.height;
-   image->info.depth = pCreateInfo->extent.depth;
-   image->info.samples = pCreateInfo->samples;
-   image->info.storage_samples = pCreateInfo->samples;
-   image->info.array_size = pCreateInfo->arrayLayers;
-   image->info.levels = pCreateInfo->mipLevels;
-   image->info.num_channels = vk_format_get_nr_components(format);
-
-   image->plane_count = vk_format_get_plane_count(format);
-   image->disjoint = image->plane_count > 1 && pCreateInfo->flags & VK_IMAGE_CREATE_DISJOINT_BIT;
-
-   image->exclusive = pCreateInfo->sharingMode == VK_SHARING_MODE_EXCLUSIVE;
-   if (pCreateInfo->sharingMode == VK_SHARING_MODE_CONCURRENT) {
-      for (uint32_t i = 0; i < pCreateInfo->queueFamilyIndexCount; ++i)
-         if (pCreateInfo->pQueueFamilyIndices[i] == VK_QUEUE_FAMILY_EXTERNAL ||
-             pCreateInfo->pQueueFamilyIndices[i] == VK_QUEUE_FAMILY_FOREIGN_EXT)
-            image->queue_family_mask |= (1u << RVGPU_MAX_QUEUE_FAMILIES) - 1u;
-         else
-            image->queue_family_mask |= 1u << vk_queue_to_rvgpu(pCreateInfo->pQueueFamilyIndices[i]);
-   }
-
-   const VkExternalMemoryImageCreateInfo *external_info =
-      vk_find_struct_const(pCreateInfo->pNext, EXTERNAL_MEMORY_IMAGE_CREATE_INFO);
-
-   image->shareable = external_info;
-
-   VkResult result = rvgpu_image_create_layout(device, *create_info, image);
-   if (result != VK_SUCCESS) {
-      rvgpu_destroy_image(device, alloc, image);
-      return result;
-   }
+   rvgpu_image_layout_init(&image->layout);
 
    *pImage = rvgpu_image_to_handle(image);
-
    return VK_SUCCESS;
 }
 
@@ -196,18 +141,8 @@ rvgpu_CreateImage(VkDevice _device, const VkImageCreateInfo *pCreateInfo,
                                                pCreateInfo,
                                                swapchain_info->swapchain,
                                                pImage);
-   } 
+   }
 
-   const struct wsi_image_create_info *wsi_info =
-      vk_find_struct_const(pCreateInfo->pNext, WSI_IMAGE_CREATE_INFO_MESA);
-   bool scanout = wsi_info && wsi_info->scanout;
-   bool prime_blit_src = wsi_info && wsi_info->blit_src;
-   
-   return rvgpu_image_create(_device,
-                            &(struct rvgpu_image_create_info){
-                               .vk_info = pCreateInfo,
-                               .scanout = scanout,
-                               .prime_blit_src = prime_blit_src,
-                            },
-                            pAllocator, pImage, false);
+   const VkSubresourceLayout *plane_layouts;
+   return rvgpu_image_create(_device, pCreateInfo, pAllocator, pImage, DRM_FORMAT_MOD_LINEAR, plane_layouts);
 }
