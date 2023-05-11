@@ -28,19 +28,13 @@
 #include "util/u_memory.h"
 
 #include "rvgpu_winsys.h"
-#include "rvgpu_winsys_bo.h"
 
 static VkResult
-rvgpu_winsys_bo_create(struct rvgpu_winsys *ws, uint64_t size, unsigned alignment,
-                       enum radeon_bo_domain initial_domain, enum radeon_bo_flag flags,
-                       unsigned priority, uint64_t replay_address,
-                       struct rvgpu_winsys_bo **out_bo)
+rvgpu_winsys_bo_create(struct rvgpu_winsys *ws, uint64_t size, uint32_t flags, struct rvgpu_winsys_bo **out_bo)
 {
    struct rvgpu_winsys_bo *bo;
    uint64_t va = 0;
 
-   /* Just be robust for callers that might use NULL-ness for determining if things should be freed.
-    */
    *out_bo = NULL;
 
    bo = CALLOC_STRUCT(rvgpu_winsys_bo);
@@ -48,14 +42,14 @@ rvgpu_winsys_bo_create(struct rvgpu_winsys *ws, uint64_t size, unsigned alignmen
       return VK_ERROR_OUT_OF_HOST_MEMORY;
    }
 
-   assert(!replay_address || (flags & RADEON_FLAG_REPLAYABLE));
-
+   // use malloc now
    va = (uint64_t)malloc(size);
-
+   
    bo->va = va;
    bo->size = size;
 
    *out_bo = (struct rvgpu_winsys_bo *)bo;
+
    return VK_SUCCESS;
 }
 
@@ -68,21 +62,17 @@ rvgpu_winsys_bo_map(struct rvgpu_winsys_bo *bo)
    return data;
 }
 
+static VkResult
+rvgpu_winsys_bo_import(struct rvgpu_winsys *ws, int fd, struct rvgpu_winsys_bo **out_bo)
+{
+   return VK_SUCCESS;
+}
+
 void
 rvgpu_winsys_bo_init_functions(struct rvgpu_winsys *ws)
 {
-   ws->ops.buffer_create = rvgpu_winsys_bo_create;
-   // ws->ops.buffer_destroy = radv_amdgpu_winsys_bo_destroy;
    ws->ops.buffer_map = rvgpu_winsys_bo_map;
-   // ws->ops.buffer_unmap = radv_amdgpu_winsys_bo_unmap;
-   // ws->ops.buffer_from_ptr = radv_amdgpu_winsys_bo_from_ptr;
-   // ws->ops.buffer_from_fd = radv_amdgpu_winsys_bo_from_fd;
-   // ws->ops.buffer_get_fd = radv_amdgpu_winsys_get_fd;
-   // ws->ops.buffer_set_metadata = radv_amdgpu_winsys_bo_set_metadata;
-   // ws->ops.buffer_get_metadata = radv_amdgpu_winsys_bo_get_metadata;
-   // ws->ops.buffer_virtual_bind = radv_amdgpu_winsys_bo_virtual_bind;
-   // ws->ops.buffer_get_flags_from_fd = radv_amdgpu_bo_get_flags_from_fd;
-   // ws->ops.buffer_make_resident = radv_amdgpu_winsys_bo_make_resident;
-   // ws->ops.dump_bo_ranges = radv_amdgpu_dump_bo_ranges;
-   // ws->ops.dump_bo_log = radv_amdgpu_dump_bo_log;
+
+   ws->ops.bo_create = rvgpu_winsys_bo_create;
+   ws->ops.bo_import = rvgpu_winsys_bo_import;
 }

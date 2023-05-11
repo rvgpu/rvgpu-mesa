@@ -157,10 +157,6 @@ struct radeon_bo_metadata {
 struct rvgpu_winsys_bo {
    uint64_t va;
    uint64_t size;
-   bool is_local;
-   bool vram_no_cpu_access;
-   bool use_global_list;
-   enum radeon_bo_domain initial_domain;
 };
 
 struct rvgpu_winsys_bo_list {
@@ -221,9 +217,9 @@ struct rvgpu_winsys_ops {
 
    const struct vk_sync_type *const *(*get_sync_types)(struct rvgpu_winsys *ws);
 
-   /* new interface reference imagination */
-   VkResult (*import_bo)(struct rvgpu_winsys *ws, struct rvgpu_winsys_bo **out_bo);
-   VkResult (*create_bo)(struct rvgpu_winsys *ws, uint64_t size, uint32_t flags, struct rvgpu_winsys_bo **out_bo);
+   // BO Interface
+   VkResult (*bo_import)(struct rvgpu_winsys *ws, int fd, struct rvgpu_winsys_bo **out_bo);
+   VkResult (*bo_create)(struct rvgpu_winsys *ws, uint64_t size, uint32_t flags, struct rvgpu_winsys_bo **out_bo);
 
 };
 
@@ -239,5 +235,7 @@ struct rvgpu_winsys {
 
 void rvgpu_winsys_destroy(struct rvgpu_winsys *ws);
 struct rvgpu_winsys * rvgpu_winsys_create(int fd, uint64_t debug_flags, uint64_t perftest_flags);
+
+void rvgpu_winsys_bo_init_functions(struct rvgpu_winsys *ws);
 
 #endif // __RVGPU_WINSYS_H__

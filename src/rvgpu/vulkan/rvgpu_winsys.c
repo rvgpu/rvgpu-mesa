@@ -31,7 +31,6 @@
 
 #include "rvgpu_winsys.h"
 #include "rvgpu_device.h"
-#include "rvgpu_winsys_bo.h"
 
 static const struct vk_sync_type *const *
 rvgpu_winsys_get_sync_types(struct rvgpu_winsys *ws)
