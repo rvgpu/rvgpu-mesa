@@ -33,8 +33,6 @@
 
 #include "drm_ioctl.h"
 
-#include "rvgpu_winsys_surface.h"
-
 enum rvgpu_ctx_priority {
    RVGPU_CTX_PRIORITY_INVALID = -1,
    RVGPU_CTX_PRIORITY_LOW = 0,
@@ -55,9 +53,6 @@ struct rvgpu_winsys_ops {
 
    void (*buffer_destroy)(struct rvgpu_winsys *ws, struct rvgpu_winsys_bo *bo);
    void *(*buffer_map)(struct rvgpu_winsys_bo *bo);
-
-   int (*surface_init)(struct rvgpu_winsys *ws, const struct rvgpu_surf_info *surf_info,
-                       struct rvgpu_surf *surf);
 
    const struct vk_sync_type *const *(*get_sync_types)(struct rvgpu_winsys *ws);
 

@@ -77,7 +77,6 @@ rvgpu_winsys_create(int fd, uint64_t debug_flags, uint64_t perftest_flags)
 
    ws->ops.get_sync_types = rvgpu_winsys_get_sync_types;
    rvgpu_winsys_bo_init_functions(ws);
-   rvgpu_winsys_surface_init_functions(ws);
 
    return ws;
 
