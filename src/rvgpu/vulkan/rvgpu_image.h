@@ -78,7 +78,6 @@ struct rvgpu_image_layout {
 
    unsigned data_size;
    unsigned array_stride;
-
 };
 
 struct rvgpu_image {
@@ -93,6 +92,27 @@ struct rvgpu_image {
 
    VkDeviceSize size;
    uint32_t alignment;
+};
+
+struct rvgpu_image_view {
+   struct vk_image_view vk;
+   
+   // image view
+   enum pipe_format format;
+   enum rvgpu_texture_dimension dim;
+   unsigned first_level, last_level;
+   unsigned first_layer, last_layer;
+   unsigned char swizzle[4];
+   const struct rvgpu_image *image;
+
+   unsigned nr_samples;
+
+   struct {
+      unsigned offset;
+      unsigned size;
+   } buf;
+
+   struct rvgpu_winsys_bo *bo;
 };
 
 static VkResult rvgpu_image_create(VkDevice _device, 

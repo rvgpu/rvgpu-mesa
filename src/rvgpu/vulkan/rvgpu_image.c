@@ -145,3 +145,21 @@ rvgpu_CreateImage(VkDevice _device, const VkImageCreateInfo *pCreateInfo,
 
    return rvgpu_image_create(_device, pCreateInfo, pAllocator, pImage, DRM_FORMAT_MOD_LINEAR);
 }
+
+VKAPI_ATTR VkResult VKAPI_CALL
+rvgpu_CreateImageView(VkDevice _device, const VkImageViewCreateInfo *pCreateInfo,
+                      const VkAllocationCallbacks *pAllocator, VkImageView *pView)
+{
+   // RVGPU_FROM_HANDLE(rvgpu_image, image, pCreateInfo->image);
+   RVGPU_FROM_HANDLE(rvgpu_device, device, _device);
+   struct rvgpu_image_view *view;
+
+   view = vk_object_zalloc(&device->vk, pAllocator, sizeof(*view), VK_OBJECT_TYPE_IMAGE_VIEW);
+
+   if (view == NULL)
+      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+
+   *pView = rvgpu_image_view_to_handle(view);
+
+   return VK_SUCCESS;
+}
