@@ -39,6 +39,7 @@
 #include "rvgpu_buffer.h"
 #include "rvgpu_device_memory.h"
 #include "rvgpu_cmd_buffer.h"
+#include "rvgpu_descriptor_set.h"
 
 #include "rvgpu_util.h"
 
@@ -59,7 +60,8 @@ VK_DEFINE_HANDLE_CASTS(rvgpu_cmd_buffer, vk.base, VkCommandBuffer, VK_OBJECT_TYP
 VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_buffer, vk.base, VkBuffer, VK_OBJECT_TYPE_BUFFER)
 VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_image, vk.base, VkImage, VK_OBJECT_TYPE_IMAGE)
 VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_device_memory, base, VkDeviceMemory, VK_OBJECT_TYPE_DEVICE_MEMORY)
-VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_image_view, vk.base, VkImageView, VK_OBJECT_TYPE_IMAGE_VIEW);
+VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_image_view, vk.base, VkImageView, VK_OBJECT_TYPE_IMAGE_VIEW)
+VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_descriptor_set_layout, vk.base, VkDescriptorSetLayout, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT)
 
 /**   
  * Warn on ignored extension structs.
