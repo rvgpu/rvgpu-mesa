@@ -30,6 +30,14 @@
 #include "rvgpu_private.h"
 
 static VkResult
+rvgpu_graphics_pipeline_init(struct rvgpu_graphics_pipeline *pipeline, struct rvgpu_device *device,
+                             struct vk_pipeline_cache *cache,
+                             const VkGraphicsPipelineCreateInfo *pCreateInfo)
+{
+   return VK_SUCCESS;
+}
+
+static VkResult
 rvgpu_graphics_pipeline_create(VkDevice _device, VkPipelineCache _cache,
                                const VkGraphicsPipelineCreateInfo *pCreateInfo,
                                const VkAllocationCallbacks *pAllocator, VkPipeline *pPipeline)
@@ -44,6 +52,14 @@ rvgpu_graphics_pipeline_create(VkDevice _device, VkPipelineCache _cache,
    if (pipeline == NULL)
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
+   rvgpu_pipeline_init(device, &pipeline->base);
+
+   result = rvgpu_graphics_pipeline_init(pipeline, device, cache, pCreateInfo);
+   if (result != VK_SUCCESS) {
+      rvgpu_pipeline_destroy(device, &pipeline->base, pAllocator);
+      return result;
+   }
+ 
    *pPipeline = rvgpu_pipeline_to_handle(&pipeline->base);
    return VK_SUCCESS;
 }

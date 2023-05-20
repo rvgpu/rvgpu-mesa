@@ -25,19 +25,18 @@
  * SOFTWARE.
  */
 
-#ifndef RVGPU_PIPELINE_H__
-#define RVGPU_PIPELINE_H__
+#include "rvgpu_private.h"
 
-struct rvgpu_pipeline {
-   struct vk_object_base base;
-};
+void
+rvgpu_pipeline_init(struct rvgpu_device *device, struct rvgpu_pipeline *pipeline)
+{
+   vk_object_base_init(&device->vk, &pipeline->base, VK_OBJECT_TYPE_PIPELINE);
+}
 
-struct rvgpu_graphics_pipeline {
-   struct rvgpu_pipeline base;
-};
-
-
-void rvgpu_pipeline_init(struct rvgpu_device *device, struct rvgpu_pipeline *pipeline);
-void rvgpu_pipeline_destroy(struct rvgpu_device *device, struct rvgpu_pipeline *pipeline,
-                       const VkAllocationCallbacks *allocator);
-#endif // RVGPU_PIPELINE_H__
+void
+rvgpu_pipeline_destroy(struct rvgpu_device *device, struct rvgpu_pipeline *pipeline,
+                       const VkAllocationCallbacks *allocator)
+{
+   vk_object_base_finish(&pipeline->base);
+   vk_free2(&device->vk.alloc, allocator, pipeline);
+}
