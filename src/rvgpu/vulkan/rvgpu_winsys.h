@@ -60,6 +60,7 @@ struct rvgpu_winsys_ops {
    VkResult (*bo_import)(struct rvgpu_winsys *ws, int fd, struct rvgpu_winsys_bo **out_bo);
    VkResult (*bo_create)(struct rvgpu_winsys *ws, uint64_t size, uint32_t flags, struct rvgpu_winsys_bo **out_bo);
 
+   int (*get_fd)(struct rvgpu_winsys *ws);
 };
 
 struct rvgpu_winsys {
@@ -70,6 +71,7 @@ struct rvgpu_winsys {
    const struct vk_sync_type *sync_types[3];
    struct vk_sync_type syncobj_sync_type;
    struct vk_sync_timeline_type emulated_timeline_sync_type;
+
 };
 
 void rvgpu_winsys_destroy(struct rvgpu_winsys *ws);

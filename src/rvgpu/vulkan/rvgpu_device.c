@@ -132,6 +132,7 @@ rvgpu_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pC
    device->physical_device = physical_device;
 
    device->ws = physical_device->ws;
+   vk_device_set_drm_fd(&device->vk, device->ws->ops.get_fd(device->ws));
 
    *pDevice = rvgpu_device_to_handle(device);
    return VK_SUCCESS;

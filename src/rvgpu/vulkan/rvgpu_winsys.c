@@ -43,6 +43,12 @@ void rvgpu_winsys_destroy(struct rvgpu_winsys *ws)
     ws->ops.destroy(ws);
 }
 
+static int
+rvgpu_winsys_get_fd(struct rvgpu_winsys *ws)
+{  
+   return ws->dev->fd;
+}
+
 struct rvgpu_winsys *
 rvgpu_winsys_create(int fd, uint64_t debug_flags, uint64_t perftest_flags)
 {
@@ -52,7 +58,7 @@ rvgpu_winsys_create(int fd, uint64_t debug_flags, uint64_t perftest_flags)
 
    r = rvgpu_drm_device_initialize(fd, &drm_major, &drm_minor, &dev);
    if (r) {
-      fprintf(stderr, "radv/amdgpu: failed to initialize device.\n");
+      fprintf(stderr, "failed to initialize device.\n");
       return NULL;
    }
 
@@ -76,6 +82,7 @@ rvgpu_winsys_create(int fd, uint64_t debug_flags, uint64_t perftest_flags)
    ws->sync_types[num_sync_types++] = NULL;
 
    ws->ops.get_sync_types = rvgpu_winsys_get_sync_types;
+   ws->ops.get_fd = rvgpu_winsys_get_fd;
    rvgpu_winsys_bo_init_functions(ws);
 
    return ws;
