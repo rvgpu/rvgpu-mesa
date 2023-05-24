@@ -32,119 +32,289 @@
 
 #include "rvgpu_private.h"
 
+
+static bool rvgpu_is_filter_minmax_format_supported(VkFormat format)
+{
+   /* From the Vulkan spec 1.1.71:
+    *
+    * "The following formats must support the
+    *  VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_MINMAX_BIT feature with
+    *  VK_IMAGE_TILING_OPTIMAL, if they support
+    *  VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT."
+    */
+   /* TODO: enable more formats. */
+   switch (format) {
+   case VK_FORMAT_R8_UNORM:
+   case VK_FORMAT_R8_SNORM:
+   case VK_FORMAT_R16_UNORM:
+   case VK_FORMAT_R16_SNORM:
+   case VK_FORMAT_R16_SFLOAT:
+   case VK_FORMAT_R32_SFLOAT:
+   case VK_FORMAT_D16_UNORM:
+   case VK_FORMAT_X8_D24_UNORM_PACK32:
+   case VK_FORMAT_D32_SFLOAT:
+   case VK_FORMAT_D16_UNORM_S8_UINT:
+   case VK_FORMAT_D24_UNORM_S8_UINT:
+   case VK_FORMAT_D32_SFLOAT_S8_UINT:
+      return true;
+   default:
+      return false;
+   }
+}
+
+
+// rvgpu_is_format_supported is copied from llvmpipe_is_format_supported 
+static bool
+rvgpu_is_format_supported(enum pipe_format format,
+                          enum pipe_texture_target target,
+                          unsigned sample_count,
+                          unsigned storage_sample_count,
+                          unsigned bind) {
+   const struct util_format_description *format_desc = util_format_description(format);
+
+   assert(target == PIPE_BUFFER ||
+            target == PIPE_TEXTURE_1D ||
+            target == PIPE_TEXTURE_1D_ARRAY ||
+            target == PIPE_TEXTURE_2D ||
+            target == PIPE_TEXTURE_2D_ARRAY ||
+            target == PIPE_TEXTURE_RECT ||
+            target == PIPE_TEXTURE_3D ||
+            target == PIPE_TEXTURE_CUBE ||
+            target == PIPE_TEXTURE_CUBE_ARRAY);
+
+    if ((sample_count != 0) && (sample_count != 1) && (sample_count != 4))
+        return false;
+
+    if (bind & (PIPE_BIND_RENDER_TARGET | PIPE_BIND_SHADER_IMAGE)) {
+        if (format_desc->colorspace == UTIL_FORMAT_COLORSPACE_SRGB) {
+            /* this is a lie actually other formats COULD exist where we would fail */
+            if (format_desc->nr_channels < 3)
+                return false;
+        } else if (format_desc->colorspace != UTIL_FORMAT_COLORSPACE_RGB) {
+            return false;
+        }
+
+        if (format_desc->layout != UTIL_FORMAT_LAYOUT_PLAIN &&
+            format != PIPE_FORMAT_R11G11B10_FLOAT)
+            return false;
+
+        assert(format_desc->block.width == 1);
+        assert(format_desc->block.height == 1);
+
+        if (format_desc->is_mixed)
+            return false;
+
+        if (!format_desc->is_array && !format_desc->is_bitmask && format != PIPE_FORMAT_R11G11B10_FLOAT)
+            return false;
+    }        
+
+   if (bind & PIPE_BIND_SHADER_IMAGE) {
+      switch (format) {
+         case PIPE_FORMAT_R32G32B32A32_FLOAT:
+         case PIPE_FORMAT_R16G16B16A16_FLOAT:
+         case PIPE_FORMAT_R32G32_FLOAT:
+         case PIPE_FORMAT_R16G16_FLOAT:
+         case PIPE_FORMAT_R11G11B10_FLOAT:
+         case PIPE_FORMAT_R32_FLOAT:
+         case PIPE_FORMAT_R16_FLOAT:
+         case PIPE_FORMAT_R32G32B32A32_UINT:
+         case PIPE_FORMAT_R16G16B16A16_UINT:
+         case PIPE_FORMAT_R10G10B10A2_UINT:
+         case PIPE_FORMAT_R8G8B8A8_UINT:
+         case PIPE_FORMAT_R32G32_UINT:
+         case PIPE_FORMAT_R16G16_UINT:
+         case PIPE_FORMAT_R8G8_UINT:
+         case PIPE_FORMAT_R32_UINT:
+         case PIPE_FORMAT_R16_UINT:
+         case PIPE_FORMAT_R8_UINT:
+         case PIPE_FORMAT_R32G32B32A32_SINT:
+         case PIPE_FORMAT_R16G16B16A16_SINT:
+         case PIPE_FORMAT_R8G8B8A8_SINT:
+         case PIPE_FORMAT_R32G32_SINT:
+         case PIPE_FORMAT_R16G16_SINT:
+         case PIPE_FORMAT_R8G8_SINT:
+         case PIPE_FORMAT_R32_SINT:
+         case PIPE_FORMAT_R16_SINT:
+         case PIPE_FORMAT_R8_SINT:
+         case PIPE_FORMAT_R16G16B16A16_UNORM:
+         case PIPE_FORMAT_R10G10B10A2_UNORM:
+         case PIPE_FORMAT_R8G8B8A8_UNORM:
+         case PIPE_FORMAT_R16G16_UNORM:
+         case PIPE_FORMAT_R8G8_UNORM:
+         case PIPE_FORMAT_R16_UNORM:
+         case PIPE_FORMAT_R8_UNORM:
+         case PIPE_FORMAT_R16G16B16A16_SNORM:
+         case PIPE_FORMAT_R8G8B8A8_SNORM:
+         case PIPE_FORMAT_R16G16_SNORM:
+         case PIPE_FORMAT_R8G8_SNORM:
+         case PIPE_FORMAT_R16_SNORM:
+         case PIPE_FORMAT_R8_SNORM:
+         case PIPE_FORMAT_B8G8R8A8_UNORM:
+            break;
+
+         default:
+            return false;
+      }
+   }
+
+   if ((bind & (PIPE_BIND_RENDER_TARGET | PIPE_BIND_SAMPLER_VIEW)) &&
+       ((bind & PIPE_BIND_DISPLAY_TARGET) == 0)) {
+      /* Disable all 3-channel formats, where channel size != 32 bits.
+       * In some cases we run into crashes (in generate_unswizzled_blend()),
+       * for 3-channel RGB16 variants, there was an apparent LLVM bug.
+       * In any case, disabling the shallower 3-channel formats avoids a
+       * number of issues with GL_ARB_copy_image support.
+       */
+      if (format_desc->is_array &&
+          format_desc->nr_channels == 3 &&
+          format_desc->block.bits != 96) {
+         return false;
+      }
+
+      /* Disable 64-bit integer formats for RT/samplers.
+       * VK CTS crashes with these and they don't make much sense.
+       */
+      int c = util_format_get_first_non_void_channel(format_desc->format);
+      if (c >= 0) {
+         if (format_desc->channel[c].pure_integer &&
+             format_desc->channel[c].size == 64)
+            return false;
+      }
+
+   }
+
+   if (!(bind & PIPE_BIND_VERTEX_BUFFER) &&
+       util_format_is_scaled(format))
+      return false;
+   if (bind & PIPE_BIND_DEPTH_STENCIL) {
+      if (format_desc->layout != UTIL_FORMAT_LAYOUT_PLAIN)
+         return false;
+
+      if (format_desc->colorspace != UTIL_FORMAT_COLORSPACE_ZS)
+         return false;
+   }
+
+   if (format_desc->layout == UTIL_FORMAT_LAYOUT_ASTC ||
+       format_desc->layout == UTIL_FORMAT_LAYOUT_ATC) {
+      /* Software decoding is not hooked up. */
+      return false;
+   }
+
+   if (format_desc->layout == UTIL_FORMAT_LAYOUT_ETC &&
+       format != PIPE_FORMAT_ETC1_RGB8)
+      return false;
+
+   /*
+    * Everything can be supported by u_format
+    * (those without fetch_rgba_float might be not but shouldn't hit that)
+    */
+
+   return true;
+
+}
+
+
+
 static void
 rvgpu_physical_device_get_format_properties(struct rvgpu_physical_device *physical_device,
                                             VkFormat format, VkFormatProperties3 *out_properties)
 {
-   VkFormatFeatureFlags2 linear = 0, tiled = 0, buffer = 0;
-   const struct util_format_description *desc = vk_format_description(format);
-   bool scaled = false;
-   /* TODO: implement some software emulation of SUBSAMPLED formats. */
-   if (desc->format == PIPE_FORMAT_NONE || desc->layout == UTIL_FORMAT_LAYOUT_SUBSAMPLED) {
-      out_properties->linearTilingFeatures = linear;
-      out_properties->optimalTilingFeatures = tiled;
-      out_properties->bufferFeatures = buffer;
+    enum pipe_format pformat = rvgpu_vk_format_to_pipe_format(format);
+    VkFormatFeatureFlags2 features = 0, buffer_features = 0;
+    if (pformat == PIPE_FORMAT_NONE) {
+      out_properties->linearTilingFeatures = 0;
+      out_properties->optimalTilingFeatures = 0;
+      out_properties->bufferFeatures = 0;
       return;
+    }
+
+    if (rvgpu_is_format_supported(pformat, PIPE_TEXTURE_2D, 0, 0, PIPE_BIND_DEPTH_STENCIL)) {
+        out_properties->linearTilingFeatures = 0;
+        out_properties->optimalTilingFeatures = VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT | 
+                                                VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT |
+                                                VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT | 
+                                                VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT |
+                                                VK_FORMAT_FEATURE_2_BLIT_SRC_BIT | 
+                                                VK_FORMAT_FEATURE_2_BLIT_DST_BIT |
+                                                VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_DEPTH_COMPARISON_BIT |  
+                                                VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+
+        if (rvgpu_is_filter_minmax_format_supported(format)) {
+            out_properties->optimalTilingFeatures |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_MINMAX_BIT;
+        }
+        out_properties->bufferFeatures = 0;
+        return;
+    }
+
+    if (util_format_is_compressed(pformat)) {
+        if (rvgpu_is_format_supported(pformat, PIPE_TEXTURE_2D, 0, 0, PIPE_BIND_SAMPLER_VIEW)) {
+            features |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT;
+            features |= VK_FORMAT_FEATURE_2_BLIT_SRC_BIT;
+            features |= VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT;
+        }
+        out_properties->linearTilingFeatures = features;
+        out_properties->optimalTilingFeatures = features;
+        out_properties->bufferFeatures = buffer_features;
+        return;
+    }
+
+   if (!util_format_is_srgb(pformat) && rvgpu_is_format_supported(pformat,PIPE_BUFFER,0,0,PIPE_BIND_VERTEX_BUFFER)) {
+       buffer_features |= VK_FORMAT_FEATURE_2_VERTEX_BUFFER_BIT;
    }
 
-   if (desc->layout == UTIL_FORMAT_LAYOUT_ETC) {
-      out_properties->linearTilingFeatures = linear;
-      out_properties->optimalTilingFeatures = tiled;
-      out_properties->bufferFeatures = buffer;
-      return;
+   if (rvgpu_is_format_supported(pformat,PIPE_BUFFER,0,0,PIPE_BIND_CONSTANT_BUFFER)) {
+       buffer_features |= VK_FORMAT_FEATURE_2_UNIFORM_TEXEL_BUFFER_BIT;
    }
 
-   if (vk_format_is_depth_or_stencil(format)) {
-      tiled |= VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT;
-      tiled |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT;
-      tiled |= VK_FORMAT_FEATURE_2_BLIT_SRC_BIT | VK_FORMAT_FEATURE_2_BLIT_DST_BIT;
-      tiled |= VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT;
+   if (rvgpu_is_format_supported(pformat, PIPE_BUFFER, 0, 0, PIPE_BIND_SHADER_IMAGE)) {
+       buffer_features |= VK_FORMAT_FEATURE_2_STORAGE_TEXEL_BUFFER_BIT;
+       //TODO: VK_FORMAT_FEATURE_2_STORAGE_READ_WITHOUT_FORMAT_BIT, VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT
+   } 
 
-      if (vk_format_has_depth(format)) {
-         tiled |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_LINEAR_BIT |
-                     VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_DEPTH_COMPARISON_BIT;
-      }
-
-      /* Don't support blitting surfaces with depth/stencil. */
-      if (vk_format_has_depth(format) && vk_format_has_stencil(format))
-         tiled &= ~VK_FORMAT_FEATURE_2_BLIT_DST_BIT;
-
-      /* Don't support linear depth surfaces */
-      linear = 0;
-   } else {
-      if (tiled && !scaled) {
-         tiled |= VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT;
-      }
-
-      /* Tiled formatting does not support NPOT pixel sizes */
-      if (!util_is_power_of_two_or_zero(vk_format_get_blocksize(format)))
-         tiled = 0;
+   if (rvgpu_is_format_supported(pformat,PIPE_TEXTURE_2D,0,0,PIPE_BIND_SAMPLER_VIEW)) {
+       features |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT;
+       if (util_format_has_depth(util_format_description(pformat)))
+           features |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_DEPTH_COMPARISON_BIT;
+       if (!util_format_is_pure_integer(pformat))
+           features |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+       if (rvgpu_is_filter_minmax_format_supported(format))   
+           features |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_MINMAX_BIT;
    }
 
-   if (linear && !scaled) {
-      linear |= VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT;
+   if (rvgpu_is_format_supported(pformat,PIPE_TEXTURE_2D,0,0,PIPE_BIND_RENDER_TARGET)) {
+       features |= VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BIT;
+       /* SNORM blending on llvmpipe fails CTS - disable for now */
+       if (!util_format_is_snorm(pformat) && !util_format_is_pure_integer(pformat))
+           features |= VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BLEND_BIT;
    }
 
-   switch (format) {
-   case VK_FORMAT_A2R10G10B10_SNORM_PACK32:
-   case VK_FORMAT_A2B10G10R10_SNORM_PACK32:
-   case VK_FORMAT_A2R10G10B10_SSCALED_PACK32:
-   case VK_FORMAT_A2B10G10R10_SSCALED_PACK32:
-   case VK_FORMAT_A2R10G10B10_SINT_PACK32:
-   case VK_FORMAT_A2B10G10R10_SINT_PACK32:
-      buffer &=
-         ~(VK_FORMAT_FEATURE_2_UNIFORM_TEXEL_BUFFER_BIT | VK_FORMAT_FEATURE_2_STORAGE_TEXEL_BUFFER_BIT);
-      linear = 0;
-      tiled = 0;
-      break;
-   default:
-      break;
+   if (rvgpu_is_format_supported(pformat,PIPE_TEXTURE_2D,0,0,PIPE_BIND_SHADER_IMAGE)) {
+       features |= VK_FORMAT_FEATURE_2_STORAGE_IMAGE_BIT;
+       // TODO: VK_FORMAT_FEATURE_2_STORAGE_READ_WITHOUT_FORMAT_BIT, VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT 
    }
 
-   switch (format) {
-   case VK_FORMAT_R32G32_SFLOAT:
-   case VK_FORMAT_R32G32B32_SFLOAT:
-   case VK_FORMAT_R32G32B32A32_SFLOAT:
-   case VK_FORMAT_R16G16_SFLOAT:
-   case VK_FORMAT_R16G16B16_SFLOAT:
-   case VK_FORMAT_R16G16B16A16_SFLOAT:
-   case VK_FORMAT_R16G16_SNORM:
-   case VK_FORMAT_R16G16_UNORM:
-   case VK_FORMAT_R16G16B16A16_SNORM:
-   case VK_FORMAT_R16G16B16A16_UNORM:
-   case VK_FORMAT_R8G8_SNORM:
-   case VK_FORMAT_R8G8_UNORM:
-   case VK_FORMAT_R8G8B8A8_SNORM:
-   case VK_FORMAT_R8G8B8A8_UNORM:
-   case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
-      buffer |= VK_FORMAT_FEATURE_2_ACCELERATION_STRUCTURE_VERTEX_BUFFER_BIT_KHR;
-      break;
-   default:
-      break;
-   }
-   /* addrlib does not support linear compressed textures. */
-   if (vk_format_is_compressed(format))
-      linear = 0;
-
-   /* From the Vulkan spec 1.2.163:
-    *
-    * "VK_FORMAT_FEATURE_2_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT must be supported for the
-    *  following formats if the attachmentFragmentShadingRate feature is supported:"
-    *
-    * - VK_FORMAT_R8_UINT
-    */
-   if (format == VK_FORMAT_R8_UINT) {
-      tiled |= VK_FORMAT_FEATURE_2_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR;
+   if (pformat == PIPE_FORMAT_R32_UINT || pformat == PIPE_FORMAT_R32_SINT || pformat == PIPE_FORMAT_R32_FLOAT) { 
+       features |= VK_FORMAT_FEATURE_2_STORAGE_IMAGE_ATOMIC_BIT;
+       buffer_features |= VK_FORMAT_FEATURE_2_STORAGE_TEXEL_BUFFER_ATOMIC_BIT;
    }
 
-   /* It's invalid to expose buffer features with depth/stencil formats. */
-   if (vk_format_is_depth_or_stencil(format)) {
-      buffer = 0;
+   if (pformat == PIPE_FORMAT_R11G11B10_FLOAT || pformat == PIPE_FORMAT_R9G9B9E5_FLOAT)
+       features |= VK_FORMAT_FEATURE_2_BLIT_SRC_BIT;
+
+   if (features && buffer_features != VK_FORMAT_FEATURE_2_VERTEX_BUFFER_BIT) 
+       features |= VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT;
+   if (pformat == PIPE_FORMAT_B5G6R5_UNORM)
+       features |= VK_FORMAT_FEATURE_2_BLIT_SRC_BIT | VK_FORMAT_FEATURE_2_BLIT_DST_BIT;
+   if ((pformat != PIPE_FORMAT_R9G9B9E5_FLOAT) && util_format_get_nr_components(pformat) != 3 &&
+       pformat != PIPE_FORMAT_R10G10B10A2_SNORM && pformat != PIPE_FORMAT_B10G10R10A2_SNORM &&
+       pformat != PIPE_FORMAT_B10G10R10A2_UNORM) {
+       features |= VK_FORMAT_FEATURE_2_BLIT_SRC_BIT | VK_FORMAT_FEATURE_2_BLIT_DST_BIT; 
    }
 
-   out_properties->linearTilingFeatures = linear;
-   out_properties->optimalTilingFeatures = tiled;
-   out_properties->bufferFeatures = buffer;
+   out_properties->linearTilingFeatures = features;
+   out_properties->optimalTilingFeatures = features;
+   out_properties->bufferFeatures = buffer_features;
+   return;
 }
 
 static void

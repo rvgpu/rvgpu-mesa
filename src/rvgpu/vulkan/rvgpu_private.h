@@ -30,6 +30,7 @@
 
 #include "vk_object.h"
 
+#include "vk_format.h"
 #include "rvgpu_instance.h"
 #include "rvgpu_physical_device.h"
 #include "rvgpu_queue.h"
@@ -83,4 +84,39 @@ VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_pipeline, base, VkPipeline, VK_OBJECT_TYPE_
 #define rvgpu_debug_ignored_stype(sType) \
    mesa_logd("%s: ignored VkStructureType %u\n", __func__, (sType))
 
+
+static inline enum pipe_format
+rvgpu_vk_format_to_pipe_format(VkFormat format)
+{
+   /* Some formats cause problems with CTS right now.*/
+   if (format == VK_FORMAT_R4G4B4A4_UNORM_PACK16 ||
+       format == VK_FORMAT_R8_SRGB ||
+       format == VK_FORMAT_R8G8_SRGB ||
+       format == VK_FORMAT_R64G64B64A64_SFLOAT ||
+       format == VK_FORMAT_R64_SFLOAT ||
+       format == VK_FORMAT_R64G64_SFLOAT ||
+       format == VK_FORMAT_R64G64B64_SFLOAT ||
+       format == VK_FORMAT_A2R10G10B10_SINT_PACK32 ||
+       format == VK_FORMAT_A2B10G10R10_SINT_PACK32 ||
+       format == VK_FORMAT_G8B8G8R8_422_UNORM ||
+       format == VK_FORMAT_B8G8R8G8_422_UNORM ||
+       format == VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM ||
+       format == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM ||
+       format == VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM ||
+       format == VK_FORMAT_G8_B8R8_2PLANE_422_UNORM ||
+       format == VK_FORMAT_G8_B8_R8_3PLANE_444_UNORM ||
+       format == VK_FORMAT_G16_B16_R16_3PLANE_420_UNORM ||
+       format == VK_FORMAT_G16_B16R16_2PLANE_420_UNORM ||
+       format == VK_FORMAT_G16_B16_R16_3PLANE_422_UNORM ||
+       format == VK_FORMAT_G16_B16R16_2PLANE_422_UNORM ||
+       format == VK_FORMAT_G16_B16_R16_3PLANE_444_UNORM ||
+       format == VK_FORMAT_D16_UNORM_S8_UINT)
+      return PIPE_FORMAT_NONE;
+
+   return vk_format_to_pipe_format(format);
+}
+
+bool rvgpu_is_buffer_format_supported(VkFormat format, bool *scaled);
+uint32_t rvgpu_translate_buffer_dataformat(const struct util_format_description *desc, int first_non_void);
+uint32_t rvgpu_translate_buffer_numformat(const struct util_format_description *desc, int first_non_void);
 #endif // __RVGPU_PRIVATE_H__
