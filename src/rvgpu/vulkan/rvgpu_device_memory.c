@@ -87,6 +87,9 @@ rvgpu_alloc_memory(struct rvgpu_device *device, const VkMemoryAllocateInfo *pAll
    const VkImportMemoryFdInfoKHR *fd_info =
       vk_find_struct_const(pAllocateInfo->pNext, IMPORT_MEMORY_FD_INFO_KHR);
    
+   const VkImportMemoryHostPointerInfoEXT *host_ptr_info = 
+       vk_find_struct_const(pAllocateInfo->pNext, IMPORT_MEMORY_HOST_POINTER_INFO_EXT);
+   
    if (fd_info && !fd_info->handleType)
       fd_info = NULL;
    
@@ -109,11 +112,19 @@ rvgpu_alloc_memory(struct rvgpu_device *device, const VkMemoryAllocateInfo *pAll
        * If the import fails, we leave the file descriptor open.
        */
       close(fd_info->fd);
+   } else if (host_ptr_info) {
+       assert(host_ptr_info->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT);
+
+       // TODO: set the mem->user_ptr 
+       printf("!!!!! [rvgpu_alloc_memory] should set the mem->user_ptr \n");
    } else {
       result = device->ws->ops.bo_create(device->ws,
                                          pAllocateInfo->allocationSize,
                                          0,
                                          &mem->bo);
+      
+      uint64_t alloc_size = align_u64(pAllocateInfo->allocationSize, 4096);
+      mem->alloc_size = alloc_size;
       if (result != VK_SUCCESS)
          goto err_vk_object_free_mem;
    }
@@ -126,6 +137,7 @@ rvgpu_alloc_memory(struct rvgpu_device *device, const VkMemoryAllocateInfo *pAll
 
 err_vk_object_free_mem:
    vk_object_free(&device->vk, pAllocator, mem);
+
 
    return result;
 }
