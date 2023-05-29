@@ -29,8 +29,9 @@
 #define __RVGPU_PRIVATE_H__
 
 #include "vk_object.h"
-
 #include "vk_format.h"
+
+#include "rvgpu_constants.h"
 #include "rvgpu_instance.h"
 #include "rvgpu_physical_device.h"
 #include "rvgpu_queue.h"
@@ -42,7 +43,6 @@
 #include "rvgpu_cmd_buffer.h"
 #include "rvgpu_descriptor_set.h"
 #include "rvgpu_pipeline.h"
-
 #include "rvgpu_util.h"
 
 #define RVGPU_API_VERSION VK_MAKE_VERSION(1, 1, VK_HEADER_VERSION)
@@ -64,7 +64,9 @@ VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_image, vk.base, VkImage, VK_OBJECT_TYPE_IMA
 VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_device_memory, base, VkDeviceMemory, VK_OBJECT_TYPE_DEVICE_MEMORY)
 VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_image_view, vk.base, VkImageView, VK_OBJECT_TYPE_IMAGE_VIEW)
 VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_descriptor_set_layout, vk.base, VkDescriptorSetLayout, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT)
+
 VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_pipeline, base, VkPipeline, VK_OBJECT_TYPE_PIPELINE)
+VK_DEFINE_NONDISP_HANDLE_CASTS(rvgpu_pipeline_layout, vk.base, VkPipelineLayout, VK_OBJECT_TYPE_PIPELINE_LAYOUT)
 
 /**   
  * Warn on ignored extension structs.

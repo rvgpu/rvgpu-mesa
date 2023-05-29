@@ -30,8 +30,60 @@
 
 #include "vk_descriptor_set_layout.h"
 
+struct rvgpu_descriptor_set_binding_layout {
+   uint16_t descriptor_index;
+   /* Number of array elements in this binding */
+   VkDescriptorType type;
+   uint16_t array_size;
+   bool valid;
+
+   int16_t dynamic_index;
+   struct {
+      int16_t const_buffer_index;
+      int16_t shader_buffer_index;
+      int16_t sampler_index;
+      int16_t sampler_view_index;
+      int16_t image_index;
+      int16_t uniform_block_index;
+      int16_t uniform_block_offset;
+   } stage[MESA_SHADER_STAGES];
+
+   /* Immutable samplers (or NULL if no immutable samplers) */
+   struct pipe_sampler_state **immutable_samplers;
+};
+
 struct rvgpu_descriptor_set_layout {
    struct vk_descriptor_set_layout vk;
+
+   /* add new members after this */
+
+   uint32_t immutable_sampler_count;
+
+   /* Number of bindings in this descriptor set */
+   uint16_t binding_count;
+
+   /* Total size of the descriptor set with room for all array entries */
+   uint16_t size;
+
+   /* Shader stages affected by this descriptor set */
+   uint16_t shader_stages;
+
+   struct {
+      uint16_t const_buffer_count;
+      uint16_t shader_buffer_count;
+      uint16_t sampler_count;
+      uint16_t sampler_view_count;
+      uint16_t image_count;
+      uint16_t uniform_block_count;
+      uint16_t uniform_block_size;
+      uint16_t uniform_block_sizes[MAX_PER_STAGE_DESCRIPTOR_UNIFORM_BLOCKS]; //zero-indexed
+   } stage[MESA_SHADER_STAGES];
+
+   /* Number of dynamic offsets used by this descriptor set */
+   uint16_t dynamic_offset_count;
+
+   /* Bindings in this descriptor set */
+   struct rvgpu_descriptor_set_binding_layout binding[0];
 };
 
 #endif // RVGPU_DESCRIPTOR_SET_H__

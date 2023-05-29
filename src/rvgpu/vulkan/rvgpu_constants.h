@@ -90,4 +90,6 @@
 #define RVGPU_SHADER_ALLOC_NUM_FREE_LISTS                                                           \
    (RVGPU_SHADER_ALLOC_MAX_SIZE_CLASS - RVGPU_SHADER_ALLOC_MIN_SIZE_CLASS + 1)
 
+#define MAX_PER_STAGE_DESCRIPTOR_UNIFORM_BLOCKS 8
+
 #endif //__RVGPU_CONSTANTS_H__
