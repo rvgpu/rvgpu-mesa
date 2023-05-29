@@ -150,14 +150,19 @@ VKAPI_ATTR VkResult VKAPI_CALL
 rvgpu_CreateImageView(VkDevice _device, const VkImageViewCreateInfo *pCreateInfo,
                       const VkAllocationCallbacks *pAllocator, VkImageView *pView)
 {
-   // RVGPU_FROM_HANDLE(rvgpu_image, image, pCreateInfo->image);
+   RVGPU_FROM_HANDLE(rvgpu_image, image, pCreateInfo->image);
    RVGPU_FROM_HANDLE(rvgpu_device, device, _device);
    struct rvgpu_image_view *view;
 
-   view = vk_object_zalloc(&device->vk, pAllocator, sizeof(*view), VK_OBJECT_TYPE_IMAGE_VIEW);
+   view = vk_image_view_create(&device->vk, false, pCreateInfo,pAllocator, sizeof(*view));
 
    if (view == NULL)
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+  
+   view->format = rvgpu_vk_format_to_pipe_format(view->vk.format);
+   view->image = image;
+
+   //TODO: set the view->iv and view->sv, 参考lvp_CreateImageView
 
    *pView = rvgpu_image_view_to_handle(view);
 
