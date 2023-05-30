@@ -126,3 +126,18 @@ VKAPI_ATTR void VKAPI_CALL
 rvgpu_CmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfo* pRenderingInfo) {
 
 }
+
+VKAPI_ATTR void VKAPI_CALL
+rvgpu_CmdBindPipeline(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint,VkPipeline _pipeline) {
+
+}
+
+VKAPI_ATTR void VKAPI_CALL
+rvgpu_CmdDraw(VkCommandBuffer commandBuffer, uint32_t vertexCount, uint32_t instanceCount,uint32_t firstVertex, uint32_t firstInstance) {
+
+}
+
+VKAPI_ATTR void VKAPI_CALL
+rvgpu_CmdEndRendering(VkCommandBuffer commandBuffer) {
+
+}
