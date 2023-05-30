@@ -40,7 +40,6 @@ rvgpu_winsys_get_sync_types(struct rvgpu_winsys *ws)
 
 void rvgpu_winsys_destroy(struct rvgpu_winsys *ws)
 {
-    ws->ops.destroy(ws);
 }
 
 static int
@@ -83,6 +82,7 @@ rvgpu_winsys_create(int fd, uint64_t debug_flags, uint64_t perftest_flags)
 
    ws->ops.get_sync_types = rvgpu_winsys_get_sync_types;
    ws->ops.get_fd = rvgpu_winsys_get_fd;
+   ws->ops.destroy = rvgpu_winsys_destroy;
    rvgpu_winsys_bo_init_functions(ws);
 
    return ws;
