@@ -37,38 +37,6 @@
       .name = str_name, .len = sizeof(str_name) - 1 \
    }
 
-struct dispatch_table_builder {
-   struct vk_device_dispatch_table *tables[RVGPU_DISPATCH_TABLE_COUNT];
-   bool used[RVGPU_DISPATCH_TABLE_COUNT];
-   bool initialized[RVGPU_DISPATCH_TABLE_COUNT];
-};
-
-static void
-add_entrypoints(struct dispatch_table_builder *b,
-                const struct vk_device_entrypoint_table *entrypoints,
-                enum rvgpu_dispatch_table table)
-{
-   for (int32_t i = table - 1; i >= RVGPU_DEVICE_DISPATCH_TABLE; i--) {
-      if (i == RVGPU_DEVICE_DISPATCH_TABLE || b->used[i]) {
-         vk_device_dispatch_table_from_entrypoints(b->tables[i], entrypoints, !b->initialized[i]);
-         b->initialized[i] = true;
-      }
-   }
-
-   if (table < RVGPU_DISPATCH_TABLE_COUNT)
-      b->used[table] = true;
-}
-
-static void
-init_dispatch_tables(struct rvgpu_device *device, struct rvgpu_physical_device *physical_device)
-{
-   struct dispatch_table_builder b = {0};
-   b.tables[RVGPU_DEVICE_DISPATCH_TABLE] = &device->vk.dispatch_table;
-
-   add_entrypoints(&b, &rvgpu_device_entrypoints, RVGPU_DISPATCH_TABLE_COUNT);
-   add_entrypoints(&b, &wsi_device_entrypoints, RVGPU_DISPATCH_TABLE_COUNT);
-   add_entrypoints(&b, &vk_common_device_entrypoints, RVGPU_DISPATCH_TABLE_COUNT);
-}
 
 static VkResult
 rvgpu_check_status(struct vk_device *vk_device)
@@ -91,7 +59,12 @@ rvgpu_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pC
       return vk_error(physical_device->instance, VK_ERROR_OUT_OF_HOST_MEMORY);
    }
 
-   result = vk_device_init(&device->vk, &physical_device->vk, NULL, pCreateInfo, pAllocator);
+  
+   struct vk_device_dispatch_table dispatch_table;
+   vk_device_dispatch_table_from_entrypoints(&dispatch_table,&rvgpu_device_entrypoints, true);
+   vk_device_dispatch_table_from_entrypoints(&dispatch_table,&wsi_device_entrypoints, false);
+   result = vk_device_init(&device->vk, &physical_device->vk, &dispatch_table, pCreateInfo, pAllocator);
+
    if (result != VK_SUCCESS) {
       vk_free(&device->vk.alloc, device);
       return result;
@@ -122,8 +95,6 @@ rvgpu_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pC
             goto fail_queue;
       }
    }
-
-   init_dispatch_tables(device, physical_device);
 
    device->vk.command_buffer_ops = &rvgpu_cmd_buffer_ops;
    device->vk.check_status = rvgpu_check_status;

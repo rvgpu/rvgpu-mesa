@@ -121,3 +121,8 @@ rvgpu_EndCommandBuffer(VkCommandBuffer commandBuffer)
    RVGPU_FROM_HANDLE(rvgpu_cmd_buffer, cmd_buffer, commandBuffer);
    return vk_command_buffer_end(&cmd_buffer->vk);
 }
+
+VKAPI_ATTR void VKAPI_CALL
+rvgpu_CmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfo* pRenderingInfo) {
+
+}
