@@ -149,6 +149,16 @@ fail_queue:
    return result;
 }
 
+
+VKAPI_ATTR void VKAPI_CALL
+rvgpu_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
+{
+   RVGPU_FROM_HANDLE(rvgpu_device, device, _device);
+
+   vk_device_finish(&device->vk);
+   vk_free(&device->vk.alloc, device);
+}
+
 VKAPI_ATTR void VKAPI_CALL
 rvgpu_GetImageMemoryRequirements2(VkDevice _device, const VkImageMemoryRequirementsInfo2 *pInfo,
                                   VkMemoryRequirements2 *pMemoryRequirements)
