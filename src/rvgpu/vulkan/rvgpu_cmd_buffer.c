@@ -128,6 +128,11 @@ rvgpu_CmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfo* pR
 }
 
 VKAPI_ATTR void VKAPI_CALL
+rvgpu_CmdBeginRenderPass2(VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo *pRenderPassBegin, const VkSubpassBeginInfo *pSubpassBeginInfo)
+{
+}
+
+VKAPI_ATTR void VKAPI_CALL
 rvgpu_CmdBindPipeline(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint,VkPipeline _pipeline) {
 
 }
@@ -141,3 +146,9 @@ VKAPI_ATTR void VKAPI_CALL
 rvgpu_CmdEndRendering(VkCommandBuffer commandBuffer) {
 
 }
+
+VKAPI_ATTR void VKAPI_CALL
+rvgpu_CmdEndRenderPass2(VkCommandBuffer commandBuffer, const VkSubpassEndInfo *pSubpassEndInfo)
+{
+}
+
