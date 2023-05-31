@@ -128,8 +128,25 @@ rvgpu_CmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfo* pR
 }
 
 VKAPI_ATTR void VKAPI_CALL
-rvgpu_CmdBindPipeline(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint,VkPipeline _pipeline) {
+rvgpu_CmdBindPipeline(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline)
+{
+   VK_FROM_HANDLE(vk_command_buffer, cmd_buffer, commandBuffer);
+   if (vk_command_buffer_has_error(cmd_buffer)) {
+      return;
+   }
 
+   struct vk_cmd_queue *queue = &cmd_buffer->cmd_queue;
+   struct vk_cmd_queue_entry *cmd = vk_zalloc(queue->alloc, sizeof(struct vk_cmd_queue_entry), 8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+   if (!cmd) {
+       vk_command_buffer_set_error(cmd_buffer, VK_ERROR_OUT_OF_HOST_MEMORY);
+       return;
+   }
+
+   cmd->type = VK_CMD_BIND_PIPELINE;
+   cmd->u.bind_pipeline.pipeline_bind_point = pipelineBindPoint;
+   cmd->u.bind_pipeline.pipeline = pipeline;
+
+   list_addtail(&cmd->cmd_link, &queue->cmds);
 }
 
 VKAPI_ATTR void VKAPI_CALL
