@@ -49,7 +49,8 @@ rvgpu_files = files(
     'rvgpu_lower.c',
     'rvgpu_lower_vulkan_resource.c',
     'rvgpu_lower_inline_uniforms.c',
-    'rvgpu_wsi.c'
+    'rvgpu_wsi.c',
+    'rvgpu_execute.c'
 )
 
 rvgpu_flags = [
