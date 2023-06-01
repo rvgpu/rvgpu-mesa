@@ -149,6 +149,7 @@ fail_fd:
    return result;
 }
 
+
 static void
 rvgpu_get_physical_device_properties_1_1(struct rvgpu_physical_device *pdevice,
                                          VkPhysicalDeviceVulkan11Properties *p)
@@ -860,3 +861,67 @@ rvgpu_GetPhysicalDeviceMemoryProperties2(VkPhysicalDevice physicalDevice,
       rvgpu_debug_ignored_stype(ext->sType);
    }
 }
+
+VkResult VKAPI_CALL
+rvgpu_physical_device_init(struct rvgpu_physical_device *device, 
+                           struct rvgpu_instance *instance)
+{
+    VkResult result;
+    struct vk_physical_device_dispatch_table dispatch_table;
+    vk_physical_device_dispatch_table_from_entrypoints(&dispatch_table, &rvgpu_physical_device_entrypoints, true);
+    vk_physical_device_dispatch_table_from_entrypoints(&dispatch_table, &wsi_physical_device_entrypoints, false);
+
+    result = vk_physical_device_init(&device->vk, &instance->vk,NULL, &dispatch_table);
+
+    if (result != VK_SUCCESS) {
+        vk_error(instance, result);
+        goto fail_alloc;
+    }
+
+    device->instance = instance;
+    device->ws = rvgpu_winsys_create(1, instance->debug_flags, instance->perftest_flags);    
+    if (!device->ws) {
+        vk_error(instance, result);
+        goto fail_base;
+    }
+
+    device->vk.supported_sync_types = device->ws->ops.get_sync_types(device->ws);
+    rvgpu_physical_device_init_mem_types(device);
+    rvgpu_physical_device_get_supported_extensions(device, &device->vk.supported_extensions);
+    
+    result = rvgpu_wsi_init(device);
+
+    if (result != VK_SUCCESS) { 
+        vk_error(instance, result);
+        goto fail_base;
+    }
+
+fail_base:
+    vk_physical_device_finish(&device->vk);
+fail_alloc:
+    vk_free(&instance->vk.alloc, device);
+
+    return VK_SUCCESS;
+}
+
+VkResult
+rvgpu_enumerate_physical_devices(struct vk_instance *vk_instance) 
+{
+    struct rvgpu_instance *instance = container_of(vk_instance, struct rvgpu_instance, vk);
+    
+    struct rvgpu_physical_device *device = vk_zalloc2(&instance->vk.alloc, NULL, sizeof(*device), 8,
+                                                      VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
+
+    if (!device)
+        return vk_error(instance, VK_ERROR_OUT_OF_HOST_MEMORY);
+    
+    VkResult result = rvgpu_physical_device_init(device, instance);
+
+    if (result == VK_SUCCESS) 
+        list_addtail(&device->vk.link, &instance->vk.physical_devices.list);
+    else
+        vk_free(&vk_instance->alloc, device);
+   
+    return result;
+}
+

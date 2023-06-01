@@ -68,4 +68,7 @@ struct rvgpu_physical_device {
 VkResult create_drm_physical_device(struct vk_instance *vk_instance, struct _drmDevice *device, struct vk_physical_device **out);
 void rvgpu_physical_device_destroy(struct vk_physical_device *vk_device);
 
+VkResult VKAPI_CALL rvgpu_physical_device_init(struct rvgpu_physical_device *device,struct rvgpu_instance *instance);
+VkResult rvgpu_enumerate_physical_devices(struct vk_instance *vk_instance); 
+
 #endif //__RVGPU_PHYSICAL_DEVICE_H__
