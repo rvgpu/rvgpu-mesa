@@ -871,7 +871,7 @@ rvgpu_physical_device_init(struct rvgpu_physical_device *device,
     vk_physical_device_dispatch_table_from_entrypoints(&dispatch_table, &rvgpu_physical_device_entrypoints, true);
     vk_physical_device_dispatch_table_from_entrypoints(&dispatch_table, &wsi_physical_device_entrypoints, false);
 
-    result = vk_physical_device_init(&device->vk, &instance->vk,NULL, &dispatch_table);
+    result = vk_physical_device_init(&device->vk, &instance->vk, NULL, &dispatch_table);
 
     if (result != VK_SUCCESS) {
         vk_error(instance, result);
@@ -905,12 +905,13 @@ rvgpu_physical_device_init(struct rvgpu_physical_device *device,
         goto fail_base;
     }
 
+    return VK_SUCCESS;
 fail_base:
     vk_physical_device_finish(&device->vk);
 fail_alloc:
     vk_free(&instance->vk.alloc, device);
 
-    return VK_SUCCESS;
+    return result;
 }
 
 VkResult
