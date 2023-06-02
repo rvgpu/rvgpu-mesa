@@ -879,6 +879,7 @@ rvgpu_physical_device_init(struct rvgpu_physical_device *device,
     }
 
     device->instance = instance;
+#if 0    
     device->ws = rvgpu_winsys_create(1, instance->debug_flags, instance->perftest_flags);    
     if (!device->ws) {
         vk_error(instance, result);
@@ -886,6 +887,14 @@ rvgpu_physical_device_init(struct rvgpu_physical_device *device,
     }
 
     device->vk.supported_sync_types = device->ws->ops.get_sync_types(device->ws);
+#endif
+
+    device->sync_timeline_type = vk_sync_timeline_get_type(&rvgpu_sync_type);
+    device->sync_types[0] = &rvgpu_sync_type;
+    device->sync_types[1] = &device->sync_timeline_type.sync;
+    device->sync_types[2] = NULL;
+    device->vk.supported_sync_types = device->sync_types;
+
     rvgpu_physical_device_init_mem_types(device);
     rvgpu_physical_device_get_supported_extensions(device, &device->vk.supported_extensions);
     

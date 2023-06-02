@@ -122,4 +122,11 @@ rvgpu_vk_format_to_pipe_format(VkFormat format)
 bool rvgpu_is_buffer_format_supported(VkFormat format, bool *scaled);
 uint32_t rvgpu_translate_buffer_dataformat(const struct util_format_description *desc, int first_non_void);
 uint32_t rvgpu_translate_buffer_numformat(const struct util_format_description *desc, int first_non_void);
+
+struct rvgpu_sync {
+    struct vk_sync base;
+    bool signaled;
+};
+extern const struct vk_sync_type rvgpu_sync_type;
+
 #endif // __RVGPU_PRIVATE_H__
