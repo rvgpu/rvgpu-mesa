@@ -25,6 +25,7 @@
 #define DRM_IOCTL_H__
 
 #include <xf86drm.h>
+#include <libdrm_rvgpu.h>
 
 #define RVGPU_DRM_IOC_W(cmdIndex, size) DRM_IOC( DRM_IOC_WRITE, DRM_IOCTL_BASE, DRM_COMMAND_BASE + cmdIndex, size);
 

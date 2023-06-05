@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <xf86drm.h>
+#include <libdrm_rvgpu.h>
 
 #include "drm_ioctl.h"
 

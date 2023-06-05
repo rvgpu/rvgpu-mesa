@@ -33,6 +33,7 @@
 
 #include "rvgpu_private.h"
 #include "rvgpu_constants.h"
+#include "drm_ioctl.h"
 
 static void
 rvgpu_physical_device_get_supported_extensions(const struct rvgpu_physical_device *device,
@@ -69,13 +70,13 @@ rvgpu_physical_device_try_create(struct rvgpu_instance *instance, drmDevicePtr d
       const char *path = drm_device->nodes[DRM_NODE_RENDER];
       drmVersionPtr version;
 
-      fd = drmOpen(path, NULL);
+      fd = rvgpu_drmOpen(path, NULL);
       if (fd < 0) {
          return vk_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER, "Could not open device %s: %m",
                           path);
       }
 
-      version = drmGetVersion(fd);
+      version = rvgpu_drmGetVersion(fd);
       if (!version) {
          close(fd);
 
@@ -84,13 +85,13 @@ rvgpu_physical_device_try_create(struct rvgpu_instance *instance, drmDevicePtr d
       }
 
       if (strcmp(version->name, "rvgpu cmodel")) {
-         drmFreeVersion(version);
+        rvgpu_drmFreeVersion(version);
          close(fd);
 
          return vk_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
                           "Device '%s' is not using the AMDGPU kernel driver: %m", path);
       }
-      drmFreeVersion(version);
+      rvgpu_drmFreeVersion(version);
    }
 
    struct rvgpu_physical_device *device = vk_zalloc2(&instance->vk.alloc, NULL, sizeof(*device), 8,

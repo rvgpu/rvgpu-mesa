@@ -19,6 +19,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+dep_libdrm_rvgpu = dependency(
+    'libdrm_rvgpu', version : '>=' + '1.0.0',
+)
 rvgpu_entrypoints = custom_target(
   'rvgpu_entrypoints',
   input : [vk_entrypoints_gen, vk_api_xml],
@@ -73,6 +76,7 @@ libvulkan_rvgpu = shared_library(
   ],
   dependencies : [
     dep_libdrm,
+    dep_libdrm_rvgpu,
     idep_nir,
     idep_vulkan_util,
     idep_vulkan_runtime,
