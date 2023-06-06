@@ -35,6 +35,16 @@ static VkResult rvgpu_sync_move(struct vk_device *device,
     return VK_SUCCESS;
 }
 
+static VkResult
+rvgpu_sync_wait(struct vk_device *vk_device,
+                struct vk_sync *vk_sync,
+                uint64_t wait_value,
+                enum vk_sync_wait_flags wait_flags,
+                uint64_t abs_timeout_ns)
+{
+    return VK_SUCCESS;
+}
+
 const struct vk_sync_type rvgpu_sync_type = {
    .size = sizeof(struct rvgpu_sync),
    .features = VK_SYNC_FEATURE_BINARY |
@@ -49,5 +59,6 @@ const struct vk_sync_type rvgpu_sync_type = {
    .signal = rvgpu_sync_signal,
    .reset = rvgpu_sync_reset,
    .move = rvgpu_sync_move,
+   .wait = rvgpu_sync_wait,
 };
 
