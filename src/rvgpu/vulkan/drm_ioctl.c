@@ -48,10 +48,10 @@ int rvgpu_drm_device_initialize(int fd,
 
    dev->fd = fd;
 
-   version = drmGetVersion(fd);
+   version = rvgpu_drmGetVersion(fd);
    *major_version = version->version_major;
    *minor_version = version->version_minor;
-   drmFreeVersion(version);
+   rvgpu_drmFreeVersion(version);
 
    *device_handle = dev;
    return 0;

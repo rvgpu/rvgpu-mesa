@@ -119,7 +119,8 @@ rvgpu_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
    instance->debug_flags = parse_debug_string(getenv("RVGPU_DEBUG"), rvgpu_debug_options);
    instance->perftest_flags = parse_debug_string(getenv("RVGPU_PERFTEST"), rvgpu_perftest_options);
 
-   instance->vk.physical_devices.try_create_for_drm = create_drm_physical_device;
+   //instance->vk.physical_devices.try_create_for_drm = create_drm_physical_device;
+   instance->vk.physical_devices.enumerate = rvgpu_enumerate_physical_devices;
    instance->vk.physical_devices.destroy = rvgpu_physical_device_destroy;
 
    *pInstance = rvgpu_instance_to_handle(instance);

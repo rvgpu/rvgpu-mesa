@@ -918,6 +918,7 @@ fail_alloc:
 VkResult
 rvgpu_enumerate_physical_devices(struct vk_instance *vk_instance) 
 {
+#if 0
     struct rvgpu_instance *instance = container_of(vk_instance, struct rvgpu_instance, vk);
     
     struct rvgpu_physical_device *device = vk_zalloc2(&instance->vk.alloc, NULL, sizeof(*device), 8,
@@ -934,5 +935,44 @@ rvgpu_enumerate_physical_devices(struct vk_instance *vk_instance)
         vk_free(&vk_instance->alloc, device);
    
     return result;
+#endif
+    VkResult result;
+
+    struct rvgpu_instance *instance = container_of(vk_instance, struct rvgpu_instance, vk);
+    struct rvgpu_physical_device *device = vk_zalloc2(&instance->vk.alloc, NULL, sizeof(*device), 8,
+                                                      VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
+    if (!device)
+        return vk_error(instance, VK_ERROR_OUT_OF_HOST_MEMORY);
+
+    struct vk_physical_device_dispatch_table dispatch_table;
+    vk_physical_device_dispatch_table_from_entrypoints(&dispatch_table,
+                                                       &rvgpu_physical_device_entrypoints, true);
+    vk_physical_device_dispatch_table_from_entrypoints(&dispatch_table,
+                                                       &wsi_physical_device_entrypoints, false);
+    result = vk_physical_device_init(&device->vk, &instance->vk, NULL, &dispatch_table);
+    
+    if (result != VK_SUCCESS) { 
+        vk_free(&instance->vk.alloc, device);
+    }
+    device->instance = instance;
+    //fixme: should open a drm device return fd;
+    device->ws = rvgpu_winsys_create(1, instance->debug_flags, instance->perftest_flags);
+    if (!device->ws) { 
+        result = vk_errorf(instance, VK_ERROR_INITIALIZATION_FAILED, "failed to initialize winsys");
+        vk_physical_device_finish(&device->vk);
+    }
+
+    device->vk.supported_sync_types = device->ws->ops.get_sync_types(device->ws);
+    rvgpu_physical_device_init_mem_types(device);
+    rvgpu_physical_device_get_supported_extensions(device, &device->vk.supported_extensions);
+    result = rvgpu_wsi_init(device);
+
+    if (result != VK_SUCCESS) { 
+        vk_error(instance, result);
+        vk_physical_device_finish(&device->vk);
+    }
+
+    list_addtail(&device->vk.link, &instance->vk.physical_devices.list);
+    return VK_SUCCESS;
 }
 
