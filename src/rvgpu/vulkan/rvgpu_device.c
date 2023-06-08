@@ -61,8 +61,9 @@ rvgpu_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pC
 
   
    struct vk_device_dispatch_table dispatch_table;
-   vk_device_dispatch_table_from_entrypoints(&dispatch_table,&rvgpu_device_entrypoints, true);
-   vk_device_dispatch_table_from_entrypoints(&dispatch_table,&wsi_device_entrypoints, false);
+   vk_device_dispatch_table_from_entrypoints(&dispatch_table, &rvgpu_device_entrypoints, true);
+   rvgpu_add_enqueue_cmd_entrypoints(&dispatch_table);
+   vk_device_dispatch_table_from_entrypoints(&dispatch_table, &wsi_device_entrypoints, false);
    result = vk_device_init(&device->vk, &physical_device->vk, &dispatch_table, pCreateInfo, pAllocator);
 
    if (result != VK_SUCCESS) {
