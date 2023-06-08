@@ -77,10 +77,12 @@ libvulkan_rvgpu = shared_library(
   dependencies : [
     dep_libdrm,
     dep_libdrm_rvgpu,
+    dep_llvm,
     idep_nir,
     idep_vulkan_util,
     idep_vulkan_runtime,
     idep_vulkan_wsi,
+    idep_mesautil,
   ],
   c_args : rvgpu_flags,
   link_args : [

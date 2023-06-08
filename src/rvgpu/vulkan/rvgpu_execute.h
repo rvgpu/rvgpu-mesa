@@ -29,5 +29,8 @@
 #define __RVGPU_EXECUTE_H__
 
 void rvgpu_add_enqueue_cmd_entrypoints(struct vk_device_dispatch_table *disp);
+VkResult rvgpu_execute_cmds(struct rvgpu_device *device, struct rvgpu_queue *queue, struct rvgpu_cmd_buffer *cmd_buffer);
+
+void *rvgpu_init_queue_rendering_state(void);
 
 #endif // __RVGPU_EXECUTE_H__

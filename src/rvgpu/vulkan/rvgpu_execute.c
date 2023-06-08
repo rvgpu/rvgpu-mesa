@@ -25,10 +25,157 @@
  * IN THE SOFTWARE.
  */
 
+#include "cso_cache/cso_context.h"
+
 #include "vk_cmd_enqueue_entrypoints.h"
 #include "vk_util.h"
 
 #include "rvgpu_private.h"
+
+enum gs_output {
+  GS_OUTPUT_NONE,
+  GS_OUTPUT_NOT_LINES,
+  GS_OUTPUT_LINES,
+};
+
+struct rvgpu_render_attachment {
+   struct rvgpu_image_view *imgv;
+   VkResolveModeFlags resolve_mode;
+   struct rvgpu_image_view *resolve_imgv;
+   VkAttachmentLoadOp load_op;
+   VkAttachmentStoreOp store_op;
+   VkClearValue clear_value;
+   bool read_only;
+};
+
+struct rendering_state {
+   struct pipe_context *pctx;
+   struct rvgpu_device *device; //for uniform inlining only
+   struct u_upload_mgr *uploader;
+   struct cso_context *cso;
+
+   bool blend_dirty;
+   bool rs_dirty;
+   bool dsa_dirty;
+   bool stencil_ref_dirty;
+   bool clip_state_dirty;
+   bool blend_color_dirty;
+   bool ve_dirty;
+   bool vb_dirty;
+   bool constbuf_dirty[MESA_SHADER_STAGES];
+   bool pcbuf_dirty[MESA_SHADER_STAGES];
+   bool has_pcbuf[MESA_SHADER_STAGES];
+   bool inlines_dirty[MESA_SHADER_STAGES];
+   bool vp_dirty;
+   bool scissor_dirty;
+   bool ib_dirty;
+   bool sample_mask_dirty;
+   bool min_samples_dirty;
+   bool poison_mem;
+   bool noop_fs_bound;
+   struct pipe_draw_indirect_info indirect_info;
+   struct pipe_draw_info info;
+
+   struct pipe_grid_info dispatch_info;
+   struct pipe_framebuffer_state framebuffer;
+
+   struct pipe_blend_state blend_state;
+   struct {
+      float offset_units;
+      float offset_scale;
+      float offset_clamp;
+      bool enabled;
+   } depth_bias;
+   struct pipe_rasterizer_state rs_state;
+   struct pipe_depth_stencil_alpha_state dsa_state;
+
+   struct pipe_blend_color blend_color;
+   struct pipe_stencil_ref stencil_ref;
+   struct pipe_clip_state clip_state;
+
+   int num_scissors;
+   struct pipe_scissor_state scissors[16];
+
+   int num_viewports;
+   struct pipe_viewport_state viewports[16];
+   struct {
+      float min, max;
+   } depth[16];
+
+   uint8_t patch_vertices;
+   ubyte index_size;
+   unsigned index_offset;
+   struct pipe_resource *index_buffer;
+   struct pipe_constant_buffer const_buffer[MESA_SHADER_STAGES][16];
+   int num_const_bufs[MESA_SHADER_STAGES];
+   int num_vb;
+   unsigned start_vb;
+   struct pipe_vertex_buffer vb[PIPE_MAX_ATTRIBS];
+   struct cso_velems_state velem;
+
+   struct rvgpu_access_info access[MESA_SHADER_STAGES];
+   struct pipe_sampler_view *sv[MESA_SHADER_STAGES][PIPE_MAX_SHADER_SAMPLER_VIEWS];
+   int num_sampler_views[MESA_SHADER_STAGES];
+   struct pipe_sampler_state ss[MESA_SHADER_STAGES][PIPE_MAX_SAMPLERS];
+   /* cso_context api is stupid */
+   const struct pipe_sampler_state *cso_ss_ptr[MESA_SHADER_STAGES][PIPE_MAX_SAMPLERS];
+   int num_sampler_states[MESA_SHADER_STAGES];
+   bool sv_dirty[MESA_SHADER_STAGES];
+   bool ss_dirty[MESA_SHADER_STAGES];
+
+   struct pipe_image_view iv[MESA_SHADER_STAGES][PIPE_MAX_SHADER_IMAGES];
+   int num_shader_images[MESA_SHADER_STAGES];
+   struct pipe_shader_buffer sb[MESA_SHADER_STAGES][PIPE_MAX_SHADER_BUFFERS];
+   int num_shader_buffers[MESA_SHADER_STAGES];
+   bool iv_dirty[MESA_SHADER_STAGES];
+   bool sb_dirty[MESA_SHADER_STAGES];
+   bool disable_multisample;
+   enum gs_output gs_output_lines : 2;
+
+   uint32_t color_write_disables:8;
+   uint32_t pad:13;
+
+   void *velems_cso;
+
+   uint8_t push_constants[128 * 4];
+   uint16_t push_size[2]; //gfx, compute
+   uint16_t gfx_push_sizes[MESA_SHADER_COMPUTE];
+   struct {
+      void *block[MAX_PER_STAGE_DESCRIPTOR_UNIFORM_BLOCKS * MAX_SETS];
+      uint16_t size[MAX_PER_STAGE_DESCRIPTOR_UNIFORM_BLOCKS * MAX_SETS];
+      uint16_t count;
+   } uniform_blocks[MESA_SHADER_STAGES];
+
+   VkRect2D render_area;
+   bool suspending;
+   bool render_cond;
+   uint32_t color_att_count;
+   struct rvgpu_render_attachment *color_att;
+   struct rvgpu_render_attachment depth_att;
+   struct rvgpu_render_attachment stencil_att;
+   struct rvgpu_image_view *ds_imgv;
+   struct rvgpu_image_view *ds_resolve_imgv;
+   uint32_t                                     forced_sample_count;
+   VkResolveModeFlagBits                        forced_depth_resolve_mode;
+   VkResolveModeFlagBits                        forced_stencil_resolve_mode;
+
+   uint32_t sample_mask;
+   unsigned min_samples;
+   unsigned rast_samples;
+   float min_sample_shading;
+   bool force_min_sample;
+   bool sample_shading;
+   bool depth_clamp_sets_clip;
+
+   uint32_t num_so_targets;
+   struct pipe_stream_output_target *so_targets[PIPE_MAX_SO_BUFFERS];
+   uint32_t so_offsets[PIPE_MAX_SO_BUFFERS];
+
+   struct rvgpu_shader *shaders[MESA_SHADER_STAGES];
+
+   bool tess_ccw;
+   void *tess_states[2];
+};
 
 void rvgpu_add_enqueue_cmd_entrypoints(struct vk_device_dispatch_table *disp)
 {
@@ -479,3 +626,59 @@ static void rvgpu_execute_cmd_buffer(struct rvgpu_cmd_buffer *cmd_buffer,
    }
 }
 
+VkResult rvgpu_execute_cmds(struct rvgpu_device *device,
+                            struct rvgpu_queue *queue,
+                            struct rvgpu_cmd_buffer *cmd_buffer)
+{
+   struct rendering_state *state = queue->state;
+   memset(state, 0, sizeof(*state));
+   state->pctx = queue->ctx;
+   state->device = device;
+   state->uploader = queue->uploader;
+   state->cso = queue->cso;
+   state->blend_dirty = true;
+   state->dsa_dirty = true;
+   state->rs_dirty = true;
+   state->vp_dirty = true;
+   state->rs_state.point_tri_clip = true;
+   state->rs_state.unclamped_fragment_depth_values = device->vk.enabled_extensions.EXT_depth_range_unrestricted;
+   state->sample_mask_dirty = true;
+   state->min_samples_dirty = true;
+   state->sample_mask = UINT32_MAX;
+   state->poison_mem = device->poison_mem;
+
+   /* default values */
+   state->rs_state.line_width = 1.0;
+   state->rs_state.flatshade_first = true;
+   state->rs_state.clip_halfz = true;
+   state->rs_state.front_ccw = true;
+   state->rs_state.point_size_per_vertex = true;
+   state->rs_state.point_quad_rasterization = true;
+   state->rs_state.half_pixel_center = true;
+   state->rs_state.scissor = true;
+   state->rs_state.no_ms_sample_mask_out = true;
+
+   for (enum pipe_shader_type s = MESA_SHADER_VERTEX; s < MESA_SHADER_STAGES; s++) {
+      for (unsigned i = 0; i < ARRAY_SIZE(state->cso_ss_ptr[s]); i++)
+         state->cso_ss_ptr[s][i] = &state->ss[s][i];
+   }
+   /* create a gallium context */
+   rvgpu_execute_cmd_buffer(cmd_buffer, state, false);
+
+   state->start_vb = -1;
+   state->num_vb = 0;
+   // cso_unbind_context(queue->cso);
+   for (unsigned i = 0; i < ARRAY_SIZE(state->so_targets); i++) {
+      if (state->so_targets[i]) {
+         state->pctx->stream_output_target_destroy(state->pctx, state->so_targets[i]);
+      }
+   }
+
+   free(state->color_att);
+   return VK_SUCCESS;
+}
+
+void *rvgpu_init_queue_rendering_state(void)
+{
+   return malloc(sizeof(struct rendering_state));
+}

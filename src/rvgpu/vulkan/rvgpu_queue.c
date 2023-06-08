@@ -25,11 +25,50 @@
  * SOFTWARE.
  */
 
+#include "vk_queue.h"
+
 #include "rvgpu_private.h"
 
-static VkResult
-rvgpu_queue_submit(struct vk_queue *vqueue, struct vk_queue_submit *submission)
+static void
+destroy_pipelines(struct rvgpu_queue *queue)
 {
+   simple_mtx_lock(&queue->pipeline_lock);
+   while (util_dynarray_contains(&queue->pipeline_destroys, struct rvgpu_pipeline*)) {
+      rvgpu_pipeline_destroy(queue->device, util_dynarray_pop(&queue->pipeline_destroys, struct rvgpu_pipeline*), NULL);
+   }
+   simple_mtx_unlock(&queue->pipeline_lock);
+}
+
+static VkResult
+rvgpu_queue_submit(struct vk_queue *vqueue, struct vk_queue_submit *submit)
+{
+   struct rvgpu_queue *queue = container_of(vqueue, struct rvgpu_queue, vk);
+
+   VkResult result = vk_sync_wait_many(&queue->device->vk,
+                                       submit->wait_count, submit->waits,
+                                       VK_SYNC_WAIT_COMPLETE, UINT64_MAX);
+   if (result != VK_SUCCESS)
+      return result;
+
+   for (uint32_t i = 0; i < submit->command_buffer_count; i++) {
+      struct rvgpu_cmd_buffer *cmd_buffer =
+         container_of(submit->command_buffers[i], struct rvgpu_cmd_buffer, vk);
+
+      rvgpu_execute_cmds(queue->device, queue, cmd_buffer);
+   }
+
+#if 0
+   if (submit->command_buffer_count > 0)
+      queue->ctx->flush(queue->ctx, &queue->last_fence, 0);
+
+   for (uint32_t i = 0; i < submit->signal_count; i++) {
+      struct rvgpu_pipe_sync *sync =
+         vk_sync_as_rvgpu_pipe_sync(submit->signals[i].sync);
+      rvgpu_pipe_sync_signal_with_fence(queue->device, sync, queue->last_fence);
+   }
+#endif
+   destroy_pipelines(queue);
+
    return VK_SUCCESS;
 }
 
@@ -85,6 +124,7 @@ rvgpu_queue_init(struct rvgpu_device *device, struct rvgpu_queue *queue, int idx
    if (result != VK_SUCCESS)
       return result;
 
+   queue->state = rvgpu_init_queue_rendering_state();
    queue->vk.driver_submit = rvgpu_queue_submit;
    return VK_SUCCESS;
 }

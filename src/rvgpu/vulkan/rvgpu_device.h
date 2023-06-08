@@ -41,6 +41,7 @@ struct rvgpu_device {
 
    struct rvgpu_queue *queues[RVGPU_MAX_QUEUE_FAMILIES];
    int queue_count[RVGPU_MAX_QUEUE_FAMILIES];
+   bool poison_mem;
 
    int fd;
 };

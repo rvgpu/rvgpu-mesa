@@ -46,6 +46,16 @@ struct rvgpu_queue {
    struct vk_queue vk;
    struct rvgpu_device *device;
    enum rvgpu_ctx_priority priority;
+
+   struct pipe_context *ctx;
+   struct cso_context *cso;
+   struct u_upload_mgr *uploader;
+   struct pipe_fence_handle *last_fence;
+
+   void *state;
+
+   struct util_dynarray pipeline_destroys;
+   simple_mtx_t pipeline_lock;
 };
 
 enum rvgpu_ctx_priority rvgpu_get_queue_global_priority(const VkDeviceQueueGlobalPriorityCreateInfoKHR *pObj);
