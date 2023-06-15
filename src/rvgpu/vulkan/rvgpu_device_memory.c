@@ -87,9 +87,6 @@ rvgpu_alloc_memory(struct rvgpu_device *device, const VkMemoryAllocateInfo *pAll
    const VkImportMemoryFdInfoKHR *fd_info =
       vk_find_struct_const(pAllocateInfo->pNext, IMPORT_MEMORY_FD_INFO_KHR);
    
-   const VkImportMemoryHostPointerInfoEXT *host_ptr_info = 
-       vk_find_struct_const(pAllocateInfo->pNext, IMPORT_MEMORY_HOST_POINTER_INFO_EXT);
-   
    if (fd_info && !fd_info->handleType)
       fd_info = NULL;
    
@@ -112,19 +109,15 @@ rvgpu_alloc_memory(struct rvgpu_device *device, const VkMemoryAllocateInfo *pAll
        * If the import fails, we leave the file descriptor open.
        */
       close(fd_info->fd);
-   } else if (host_ptr_info) {
-       assert(host_ptr_info->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT);
-
-       // TODO: set the mem->user_ptr 
-       printf("!!!!! [rvgpu_alloc_memory] should set the mem->user_ptr \n");
    } else {
       result = device->ws->ops.bo_create(device->ws,
                                          pAllocateInfo->allocationSize,
                                          0,
                                          &mem->bo);
       
-      uint64_t alloc_size = align_u64(pAllocateInfo->allocationSize, 4096);
-      mem->alloc_size = alloc_size;
+      mem->alloc_size = align_u64(pAllocateInfo->allocationSize, 4096);
+      mem->user_ptr = (void *)(mem->bo->va);
+      
       if (result != VK_SUCCESS)
          goto err_vk_object_free_mem;
    }
@@ -167,4 +160,18 @@ rvgpu_MapMemory2KHR(VkDevice _device, const VkMemoryMapInfoKHR *pMemoryMapInfo, 
    }
 
    return vk_error(device, VK_ERROR_MEMORY_MAP_FAILED);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+rvgpu_UnmapMemory2KHR(VkDevice _device, const VkMemoryUnmapInfoKHR *pMemoryUnmapInfo)
+{
+   RVGPU_FROM_HANDLE(rvgpu_device, device, _device);
+   RVGPU_FROM_HANDLE(rvgpu_device_memory, mem, pMemoryUnmapInfo->memory);
+
+   vk_rmv_log_cpu_map(&device->vk, mem->bo->va, true);
+   if (mem->user_ptr == NULL) {
+      device->ws->ops.bo_unmap(mem->bo);
+   }
+
+   return VK_SUCCESS;
 }

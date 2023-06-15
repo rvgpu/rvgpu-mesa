@@ -57,7 +57,8 @@ struct rvgpu_winsys_ops {
    VkResult (*bo_create)(struct rvgpu_winsys *ws, uint64_t size, uint32_t flags, struct rvgpu_winsys_bo **out_bo);
    void     (*bo_destroy)(struct rvgpu_winsys *ws, struct rvgpu_winsys_bo *bo);
 
-   void *   (*bo_map)(struct rvgpu_winsys_bo *bo);
+   void * (*bo_map)(struct rvgpu_winsys_bo *bo);
+   void (*bo_unmap)(struct rvgpu_winsys_bo *bo);
 
    int (*get_fd)(struct rvgpu_winsys *ws);
 };
