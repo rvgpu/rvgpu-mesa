@@ -56,7 +56,7 @@ rvgpu_free_memory(struct rvgpu_device *device, const VkAllocationCallbacks *pAll
       return;
 
    if (mem->bo) {
-      device->ws->ops.buffer_destroy(device->ws, mem->bo);
+      device->ws->ops.bo_destroy(device->ws, mem->bo);
       mem->bo = NULL;
    }
 
@@ -159,7 +159,7 @@ rvgpu_MapMemory2KHR(VkDevice _device, const VkMemoryMapInfoKHR *pMemoryMapInfo, 
    if (mem->user_ptr)
       *ppData = mem->user_ptr;
    else
-      *ppData = device->ws->ops.buffer_map(mem->bo);
+      *ppData = device->ws->ops.bo_map(mem->bo);
 
    if (*ppData) {
       *ppData = (uint8_t *)*ppData + pMemoryMapInfo->offset;

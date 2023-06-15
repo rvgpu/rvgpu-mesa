@@ -53,6 +53,16 @@ rvgpu_winsys_bo_create(struct rvgpu_winsys *ws, uint64_t size, uint32_t flags, s
    return VK_SUCCESS;
 }
 
+static void 
+rvgpu_winsys_bo_destroy(struct rvgpu_winsys *ws, struct rvgpu_winsys_bo *bo)
+{
+   if (bo->va) {
+      free((void *)bo->va);
+   }
+
+   free((void *)bo);
+}
+
 static void *
 rvgpu_winsys_bo_map(struct rvgpu_winsys_bo *bo)
 {
@@ -71,8 +81,9 @@ rvgpu_winsys_bo_import(struct rvgpu_winsys *ws, int fd, struct rvgpu_winsys_bo *
 void
 rvgpu_winsys_bo_init_functions(struct rvgpu_winsys *ws)
 {
-   ws->ops.buffer_map = rvgpu_winsys_bo_map;
+   ws->ops.bo_map = rvgpu_winsys_bo_map;
 
    ws->ops.bo_create = rvgpu_winsys_bo_create;
+   ws->ops.bo_destroy = rvgpu_winsys_bo_destroy;
    ws->ops.bo_import = rvgpu_winsys_bo_import;
 }

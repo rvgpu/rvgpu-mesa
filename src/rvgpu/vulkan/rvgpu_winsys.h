@@ -51,14 +51,13 @@ struct rvgpu_winsys;
 struct rvgpu_winsys_ops {
    void (*destroy)(struct rvgpu_winsys *ws);
 
-   void (*buffer_destroy)(struct rvgpu_winsys *ws, struct rvgpu_winsys_bo *bo);
-   void *(*buffer_map)(struct rvgpu_winsys_bo *bo);
-
-   const struct vk_sync_type *const *(*get_sync_types)(struct rvgpu_winsys *ws);
-
    // BO Interface
    VkResult (*bo_import)(struct rvgpu_winsys *ws, int fd, struct rvgpu_winsys_bo **out_bo);
+
    VkResult (*bo_create)(struct rvgpu_winsys *ws, uint64_t size, uint32_t flags, struct rvgpu_winsys_bo **out_bo);
+   void     (*bo_destroy)(struct rvgpu_winsys *ws, struct rvgpu_winsys_bo *bo);
+
+   void *   (*bo_map)(struct rvgpu_winsys_bo *bo);
 
    int (*get_fd)(struct rvgpu_winsys *ws);
 };
