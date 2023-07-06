@@ -187,10 +187,173 @@ static void finish_fence(struct rendering_state *state)
 #endif
 }
 
+static void add_img_view_surface(struct rendering_state *state,
+                                 struct rvgpu_image_view *imgv, int width, int height,
+                                 int layer_count)
+{
+#if 0
+    if (imgv->surface) {
+        if (imgv->surface->width != width ||
+            imgv->surface->height != height ||
+            (imgv->surface->u.tex.last_layer - imgv->surface->u.tex.first_layer) != (layer_count - 1))
+            pipe_surface_reference(&imgv->surface, NULL);
+    }
+
+    if (!imgv->surface) {
+        imgv->surface = create_img_surface(state, imgv, imgv->vk.format,
+                                           width, height,
+                                           0, layer_count);
+    }
+#endif
+}
+
+static bool
+render_needs_clear(struct rendering_state *state)
+{
+    for (uint32_t i = 0; i < state->color_att_count; i++) {
+        if (state->color_att[i].load_op == VK_ATTACHMENT_LOAD_OP_CLEAR)
+            return true;
+    }
+    if (state->depth_att.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR)
+        return true;
+    if (state->stencil_att.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR)
+        return true;
+    return false;
+}
+
+static void render_clear(struct rendering_state *state)
+{
+#if 0
+    for (uint32_t i = 0; i < state->color_att_count; i++) {
+        if (state->color_att[i].load_op != VK_ATTACHMENT_LOAD_OP_CLEAR)
+            continue;
+
+        union pipe_color_union color_clear_val = { 0 };
+        const VkClearValue value = state->color_att[i].clear_value;
+        color_clear_val.ui[0] = value.color.uint32[0];
+        color_clear_val.ui[1] = value.color.uint32[1];
+        color_clear_val.ui[2] = value.color.uint32[2];
+        color_clear_val.ui[3] = value.color.uint32[3];
+
+        struct rvgpu_image_view *imgv = state->color_att[i].imgv;
+        assert(imgv->surface);
+
+        if (state->info.view_mask) {
+            u_foreach_bit(i, state->info.view_mask)
+                clear_attachment_layers(state, imgv, &state->render_area,
+                                        i, 1, 0, 0, 0, &color_clear_val);
+        } else {
+            state->pctx->clear_render_target(state->pctx,
+                                             imgv->surface,
+                                             &color_clear_val,
+                                             state->render_area.offset.x,
+                                             state->render_area.offset.y,
+                                             state->render_area.extent.width,
+                                             state->render_area.extent.height,
+                                             false);
+        }
+    }
+
+    uint32_t ds_clear_flags = 0;
+    double dclear_val = 0;
+    if (state->depth_att.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR) {
+        ds_clear_flags |= PIPE_CLEAR_DEPTH;
+        dclear_val = state->depth_att.clear_value.depthStencil.depth;
+    }
+
+    uint32_t sclear_val = 0;
+    if (state->stencil_att.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR) {
+        ds_clear_flags |= PIPE_CLEAR_STENCIL;
+        sclear_val = state->stencil_att.clear_value.depthStencil.stencil;
+    }
+
+    if (ds_clear_flags) {
+        if (state->info.view_mask) {
+            u_foreach_bit(i, state->info.view_mask)
+                clear_attachment_layers(state, state->ds_imgv, &state->render_area,
+                                        i, 1, ds_clear_flags, dclear_val, sclear_val, NULL);
+        } else {
+            state->pctx->clear_depth_stencil(state->pctx,
+                                             state->ds_imgv->surface,
+                                             ds_clear_flags,
+                                             dclear_val, sclear_val,
+                                             state->render_area.offset.x,
+                                             state->render_area.offset.y,
+                                             state->render_area.extent.width,
+                                             state->render_area.extent.height,
+                                             false);
+        }
+    }
+#endif
+}
+
+static void render_clear_fast(struct rendering_state *state)
+{
+    /*
+     * the state tracker clear interface only works if all the attachments have the same
+     * clear color.
+     */
+    /* llvmpipe doesn't support scissored clears yet */
+    if (state->render_area.offset.x || state->render_area.offset.y)
+        goto slow_clear;
+
+    if (state->render_area.extent.width != state->framebuffer.width ||
+        state->render_area.extent.height != state->framebuffer.height)
+        goto slow_clear;
+
+    if (state->info.view_mask)
+        goto slow_clear;
+
+    if (state->render_cond)
+        goto slow_clear;
+
+    uint32_t buffers = 0;
+    bool has_color_value = false;
+    VkClearValue color_value = {0};
+    for (uint32_t i = 0; i < state->color_att_count; i++) {
+        if (state->color_att[i].load_op != VK_ATTACHMENT_LOAD_OP_CLEAR)
+            continue;
+
+        buffers |= (PIPE_CLEAR_COLOR0 << i);
+
+        if (has_color_value) {
+            if (memcmp(&color_value, &state->color_att[i].clear_value, sizeof(VkClearValue)))
+                goto slow_clear;
+        } else {
+            memcpy(&color_value, &state->color_att[i].clear_value, sizeof(VkClearValue));
+            has_color_value = true;
+        }
+    }
+
+    double dclear_val = 0;
+    if (state->depth_att.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR) {
+        buffers |= PIPE_CLEAR_DEPTH;
+        dclear_val = state->depth_att.clear_value.depthStencil.depth;
+    }
+
+    uint32_t sclear_val = 0;
+    if (state->stencil_att.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR) {
+        buffers |= PIPE_CLEAR_STENCIL;
+        sclear_val = state->stencil_att.clear_value.depthStencil.stencil;
+    }
+
+    union pipe_color_union col_val;
+    for (unsigned i = 0; i < 4; i++)
+        col_val.ui[i] = color_value.color.uint32[i];
+#if 0
+    state->pctx->clear(state->pctx, buffers,
+                       NULL, &col_val,
+                       dclear_val, sclear_val);
+#endif
+    return;
+
+slow_clear:
+    render_clear(state);
+}
+
 static void render_att_init(struct rvgpu_render_attachment* att,
                             const VkRenderingAttachmentInfo *vk_att, bool poison_mem, bool stencil)
 {
-#if 0
     if (vk_att == NULL || vk_att->imageView == VK_NULL_HANDLE) {
         *att = (struct rvgpu_render_attachment) {
                 .load_op = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
@@ -221,17 +384,14 @@ static void render_att_init(struct rvgpu_render_attachment* att,
             memset(att->clear_value.color.uint32, rand() % UINT8_MAX, sizeof(att->clear_value.color.uint32));
         }
     }
-
     if (vk_att->resolveImageView && vk_att->resolveMode) {
         att->resolve_imgv = rvgpu_image_view_from_handle(vk_att->resolveImageView);
         att->resolve_mode = vk_att->resolveMode;
     }
-#endif
 }
 
 static void handle_begin_rendering(struct vk_cmd_queue_entry *cmd, struct rendering_state *state)
 {
-#if 0
     const VkRenderingInfo *info = cmd->u.begin_rendering.rendering_info;
     bool resuming = (info->flags & VK_RENDERING_RESUMING_BIT) == VK_RENDERING_RESUMING_BIT;
     bool suspending = (info->flags & VK_RENDERING_SUSPENDING_BIT) == VK_RENDERING_SUSPENDING_BIT;
@@ -260,19 +420,22 @@ static void handle_begin_rendering(struct vk_cmd_queue_entry *cmd, struct render
 
     state->color_att_count = info->colorAttachmentCount;
     state->color_att = realloc(state->color_att, sizeof(*state->color_att) * state->color_att_count);
+
     for (unsigned i = 0; i < info->colorAttachmentCount; i++) {
         render_att_init(&state->color_att[i], &info->pColorAttachments[i], state->poison_mem, false);
         if (state->color_att[i].imgv) {
-            struct lvp_image_view *imgv = state->color_att[i].imgv;
+            struct rvgpu_image_view *imgv = state->color_att[i].imgv;
             add_img_view_surface(state, imgv,
                                  state->framebuffer.width, state->framebuffer.height,
                                  state->framebuffer.layers);
+#if 0 // TODO.zac multisample
             if (state->forced_sample_count && imgv->image->vk.samples == 1)
                 state->color_att[i].imgv = create_multisample_surface(state, imgv, state->forced_sample_count,
                                                                       att_needs_replicate(state, imgv, state->color_att[i].load_op));
             state->framebuffer.cbufs[i] = state->color_att[i].imgv->surface;
             assert(state->render_area.offset.x + state->render_area.extent.width <= state->framebuffer.cbufs[i]->texture->width0);
             assert(state->render_area.offset.y + state->render_area.extent.height <= state->framebuffer.cbufs[i]->texture->height0);
+#endif
         } else {
             state->framebuffer.cbufs[i] = NULL;
         }
@@ -286,10 +449,11 @@ static void handle_begin_rendering(struct vk_cmd_queue_entry *cmd, struct render
                state->depth_att.imgv == state->stencil_att.imgv);
         state->ds_imgv = state->depth_att.imgv ? state->depth_att.imgv :
                          state->stencil_att.imgv;
-        struct lvp_image_view *imgv = state->ds_imgv;
+        struct rvgpu_image_view *imgv = state->ds_imgv;
         add_img_view_surface(state, imgv,
                              state->framebuffer.width, state->framebuffer.height,
                              state->framebuffer.layers);
+#if 0 // TODO.zac multisample
         if (state->forced_sample_count && imgv->image->vk.samples == 1) {
             VkAttachmentLoadOp load_op;
             if (state->depth_att.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR ||
@@ -303,6 +467,7 @@ static void handle_begin_rendering(struct vk_cmd_queue_entry *cmd, struct render
             state->ds_imgv = create_multisample_surface(state, imgv, state->forced_sample_count,
                                                         att_needs_replicate(state, imgv, load_op));
         }
+#endif
         state->framebuffer.zsbuf = state->ds_imgv->surface;
         assert(state->render_area.offset.x + state->render_area.extent.width <= state->framebuffer.zsbuf->texture->width0);
         assert(state->render_area.offset.y + state->render_area.extent.height <= state->framebuffer.zsbuf->texture->height0);
@@ -311,12 +476,9 @@ static void handle_begin_rendering(struct vk_cmd_queue_entry *cmd, struct render
         state->framebuffer.zsbuf = NULL;
     }
 
-    state->pctx->set_framebuffer_state(state->pctx,
-                                       &state->framebuffer);
-
+    // state->pctx->set_framebuffer_state(state->pctx, &state->framebuffer);  // TODO.zac set_framebuffer_state
     if (!resuming && render_needs_clear(state))
         render_clear_fast(state);
-#endif
 }
 
 static void handle_pipeline_barrier(struct vk_cmd_queue_entry *cmd,
