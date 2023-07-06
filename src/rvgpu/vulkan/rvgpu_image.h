@@ -83,16 +83,11 @@ struct rvgpu_image_layout {
 
 struct rvgpu_image {
    struct vk_image vk;
-
-   /* Image Memory */
-   struct rvgpu_winsys_bo *bo;
-   unsigned offset;
-
-   /* Image Layout */
-   struct rvgpu_image_layout layout;
-
    VkDeviceSize size;
    uint32_t alignment;
+   struct pipe_memory_allocation *pmem;
+   unsigned memory_offset;
+   struct rvgpu_winsys_bo *bo;
 };
 
 struct rvgpu_image_view {

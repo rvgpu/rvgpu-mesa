@@ -169,7 +169,7 @@ rvgpu_BindImageMemory2(VkDevice _device, uint32_t bindInfoCount,
 
       if (mem) {
          image->bo = mem->bo;
-         image->offset = pBindInfos[i].memoryOffset;
+         image->memory_offset = pBindInfos[i].memoryOffset;
       }
    }
 

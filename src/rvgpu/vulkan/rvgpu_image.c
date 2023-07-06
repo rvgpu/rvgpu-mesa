@@ -104,23 +104,69 @@ rvgpu_image_create(VkDevice _device, const VkImageCreateInfo *pCreateInfo,
    RVGPU_FROM_HANDLE(rvgpu_device, device, _device);
    struct rvgpu_image *image = NULL;
 
+   assert(pCreateInfo->sType == VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO);
+
    image = vk_image_create(&device->vk, pCreateInfo, alloc, sizeof(*image));
    if (!image)
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
-   image->layout = (struct rvgpu_image_layout){
-      .modifier = modifier,
-      .format = vk_format_to_pipe_format(image->vk.format),
-      .dim = image->vk.image_type,
-      .width = image->vk.extent.width,
-      .height = image->vk.extent.height,
-      .depth = image->vk.extent.depth,
-      .array_size = image->vk.array_layers,
-      .nr_samples = image->vk.samples,
-      .nr_slices = image->vk.mip_levels,
-   };
+   image->alignment = 16;
+   {
+      struct pipe_resource template;
+      
+      memset(&template, 0, sizeof(template));
+      switch (pCreateInfo->imageType) {
+      case VK_IMAGE_TYPE_1D:
+         template.target = pCreateInfo->arrayLayers > 1 ? PIPE_TEXTURE_1D_ARRAY : PIPE_TEXTURE_1D;
+         break;
+      default:
+      case VK_IMAGE_TYPE_2D:
+         template.target = pCreateInfo->arrayLayers > 1 ? PIPE_TEXTURE_2D_ARRAY : PIPE_TEXTURE_2D;
+         break;
+      case VK_IMAGE_TYPE_3D:
+         template.target = PIPE_TEXTURE_3D;
+         break;
+      }
 
-   rvgpu_image_layout_init(&image->layout);
+      template.format = rvgpu_vk_format_to_pipe_format(pCreateInfo->format);
+      bool is_ds = util_format_is_depth_or_stencil(template.format);
+
+      if (pCreateInfo->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) {
+         template.bind |= PIPE_BIND_RENDER_TARGET;
+         /* sampler view is needed for resolve blits */
+         if (pCreateInfo->samples > 1)
+            template.bind |= PIPE_BIND_SAMPLER_VIEW;
+      }
+
+      if (pCreateInfo->usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT) {
+         if (!is_ds)
+            template.bind |= PIPE_BIND_RENDER_TARGET;
+         else
+            template.bind |= PIPE_BIND_DEPTH_STENCIL;
+      }
+
+      if (pCreateInfo->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+         template.bind |= PIPE_BIND_DEPTH_STENCIL;
+
+      if (pCreateInfo->usage & (VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
+         template.bind |= PIPE_BIND_SAMPLER_VIEW;
+
+      if (pCreateInfo->usage & (VK_IMAGE_USAGE_STORAGE_BIT |
+                                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+                                VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
+         template.bind |= PIPE_BIND_SHADER_IMAGE;
+         
+      template.width0 = pCreateInfo->extent.width;
+      template.height0 = pCreateInfo->extent.height;
+      template.depth0 = pCreateInfo->extent.depth;
+      template.array_size = pCreateInfo->arrayLayers;
+      template.last_level = pCreateInfo->mipLevels - 1;
+      template.nr_samples = pCreateInfo->samples;
+      template.nr_storage_samples = pCreateInfo->samples;
+      VkResult result = device->ws->ops.bo_create(device->ws, image->size, 0, &image->bo);
+      if (result != VK_SUCCESS)
+         return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+   }
 
    *pImage = rvgpu_image_to_handle(image);
    return VK_SUCCESS;
