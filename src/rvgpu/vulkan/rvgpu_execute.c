@@ -177,6 +177,154 @@ struct rendering_state {
    void *tess_states[2];
 };
 
+static void finish_fence(struct rendering_state *state)
+{
+#if 0
+    struct pipe_fence_handle *handle = NULL;
+    state->pctx->flush(state->pctx, &handle, 0);
+    state->pctx->screen->fence_finish(state->pctx->screen, NULL, handle, PIPE_TIMEOUT_INFINITE);
+    state->pctx->screen->fence_reference(state->pctx->screen, &handle, NULL);
+#endif
+}
+
+static void render_att_init(struct rvgpu_render_attachment* att,
+                            const VkRenderingAttachmentInfo *vk_att, bool poison_mem, bool stencil)
+{
+#if 0
+    if (vk_att == NULL || vk_att->imageView == VK_NULL_HANDLE) {
+        *att = (struct rvgpu_render_attachment) {
+                .load_op = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        };
+        return;
+    }
+
+    *att = (struct rvgpu_render_attachment) {
+            .imgv = rvgpu_image_view_from_handle(vk_att->imageView),
+            .load_op = vk_att->loadOp,
+            .store_op = vk_att->storeOp,
+            .clear_value = vk_att->clearValue,
+    };
+    if (util_format_is_depth_or_stencil(att->imgv->pformat)) {
+        if (stencil)
+            att->read_only = vk_att->imageLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL ||
+                             vk_att->imageLayout == VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL;
+        else
+            att->read_only = vk_att->imageLayout == VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL ||
+                             vk_att->imageLayout == VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL;
+    }
+    if (poison_mem && !att->read_only && att->load_op == VK_ATTACHMENT_LOAD_OP_DONT_CARE) {
+        att->load_op = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        if (util_format_is_depth_or_stencil(att->imgv->pformat)) {
+            att->clear_value.depthStencil.depth = 0.12351251;
+            att->clear_value.depthStencil.stencil = rand() % UINT8_MAX;
+        } else {
+            memset(att->clear_value.color.uint32, rand() % UINT8_MAX, sizeof(att->clear_value.color.uint32));
+        }
+    }
+
+    if (vk_att->resolveImageView && vk_att->resolveMode) {
+        att->resolve_imgv = rvgpu_image_view_from_handle(vk_att->resolveImageView);
+        att->resolve_mode = vk_att->resolveMode;
+    }
+#endif
+}
+
+static void handle_begin_rendering(struct vk_cmd_queue_entry *cmd, struct rendering_state *state)
+{
+#if 0
+    const VkRenderingInfo *info = cmd->u.begin_rendering.rendering_info;
+    bool resuming = (info->flags & VK_RENDERING_RESUMING_BIT) == VK_RENDERING_RESUMING_BIT;
+    bool suspending = (info->flags & VK_RENDERING_SUSPENDING_BIT) == VK_RENDERING_SUSPENDING_BIT;
+
+    const VkMultisampledRenderToSingleSampledInfoEXT *ssi =
+            vk_find_struct_const(info->pNext, MULTISAMPLED_RENDER_TO_SINGLE_SAMPLED_INFO_EXT);
+    if (ssi && ssi->multisampledRenderToSingleSampledEnable) {
+        state->forced_sample_count = ssi->rasterizationSamples;
+        state->forced_depth_resolve_mode = info->pDepthAttachment ? info->pDepthAttachment->resolveMode : 0;
+        state->forced_stencil_resolve_mode = info->pStencilAttachment ? info->pStencilAttachment->resolveMode : 0;
+    } else {
+        state->forced_sample_count = 0;
+        state->forced_depth_resolve_mode = 0;
+        state->forced_stencil_resolve_mode = 0;
+    }
+
+    state->info.view_mask = info->viewMask;
+    state->render_area = info->renderArea;
+    state->suspending = suspending;
+    state->framebuffer.width = info->renderArea.offset.x +
+                               info->renderArea.extent.width;
+    state->framebuffer.height = info->renderArea.offset.y +
+                                info->renderArea.extent.height;
+    state->framebuffer.layers = info->viewMask ? util_last_bit(info->viewMask) : info->layerCount;
+    state->framebuffer.nr_cbufs = info->colorAttachmentCount;
+
+    state->color_att_count = info->colorAttachmentCount;
+    state->color_att = realloc(state->color_att, sizeof(*state->color_att) * state->color_att_count);
+    for (unsigned i = 0; i < info->colorAttachmentCount; i++) {
+        render_att_init(&state->color_att[i], &info->pColorAttachments[i], state->poison_mem, false);
+        if (state->color_att[i].imgv) {
+            struct lvp_image_view *imgv = state->color_att[i].imgv;
+            add_img_view_surface(state, imgv,
+                                 state->framebuffer.width, state->framebuffer.height,
+                                 state->framebuffer.layers);
+            if (state->forced_sample_count && imgv->image->vk.samples == 1)
+                state->color_att[i].imgv = create_multisample_surface(state, imgv, state->forced_sample_count,
+                                                                      att_needs_replicate(state, imgv, state->color_att[i].load_op));
+            state->framebuffer.cbufs[i] = state->color_att[i].imgv->surface;
+            assert(state->render_area.offset.x + state->render_area.extent.width <= state->framebuffer.cbufs[i]->texture->width0);
+            assert(state->render_area.offset.y + state->render_area.extent.height <= state->framebuffer.cbufs[i]->texture->height0);
+        } else {
+            state->framebuffer.cbufs[i] = NULL;
+        }
+    }
+
+    render_att_init(&state->depth_att, info->pDepthAttachment, state->poison_mem, false);
+    render_att_init(&state->stencil_att, info->pStencilAttachment, state->poison_mem, true);
+    if (state->depth_att.imgv || state->stencil_att.imgv) {
+        assert(state->depth_att.imgv == NULL ||
+               state->stencil_att.imgv == NULL ||
+               state->depth_att.imgv == state->stencil_att.imgv);
+        state->ds_imgv = state->depth_att.imgv ? state->depth_att.imgv :
+                         state->stencil_att.imgv;
+        struct lvp_image_view *imgv = state->ds_imgv;
+        add_img_view_surface(state, imgv,
+                             state->framebuffer.width, state->framebuffer.height,
+                             state->framebuffer.layers);
+        if (state->forced_sample_count && imgv->image->vk.samples == 1) {
+            VkAttachmentLoadOp load_op;
+            if (state->depth_att.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR ||
+                state->stencil_att.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR)
+                load_op = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            else if (state->depth_att.load_op == VK_ATTACHMENT_LOAD_OP_LOAD ||
+                     state->stencil_att.load_op == VK_ATTACHMENT_LOAD_OP_LOAD)
+                load_op = VK_ATTACHMENT_LOAD_OP_LOAD;
+            else
+                load_op = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            state->ds_imgv = create_multisample_surface(state, imgv, state->forced_sample_count,
+                                                        att_needs_replicate(state, imgv, load_op));
+        }
+        state->framebuffer.zsbuf = state->ds_imgv->surface;
+        assert(state->render_area.offset.x + state->render_area.extent.width <= state->framebuffer.zsbuf->texture->width0);
+        assert(state->render_area.offset.y + state->render_area.extent.height <= state->framebuffer.zsbuf->texture->height0);
+    } else {
+        state->ds_imgv = NULL;
+        state->framebuffer.zsbuf = NULL;
+    }
+
+    state->pctx->set_framebuffer_state(state->pctx,
+                                       &state->framebuffer);
+
+    if (!resuming && render_needs_clear(state))
+        render_clear_fast(state);
+#endif
+}
+
+static void handle_pipeline_barrier(struct vk_cmd_queue_entry *cmd,
+                                    struct rendering_state *state)
+{
+    finish_fence(state);
+}
+
 void rvgpu_add_enqueue_cmd_entrypoints(struct vk_device_dispatch_table *disp)
 {
    struct vk_device_dispatch_table cmd_enqueue_dispatch;
@@ -431,7 +579,7 @@ static void rvgpu_execute_cmd_buffer(struct rvgpu_cmd_buffer *cmd_buffer,
           */
          if (first || did_flush || cmd->cmd_link.next == &cmd_buffer->vk.cmd_queue.cmds)
             continue;
-         // handle_pipeline_barrier(cmd, state);
+         handle_pipeline_barrier(cmd, state);
          did_flush = true;
          continue;
       case VK_CMD_BEGIN_QUERY_INDEXED_EXT:
