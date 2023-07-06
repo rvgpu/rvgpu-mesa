@@ -28,6 +28,7 @@
 #ifndef RVGPU_IMAGE_H__
 #define RVGPU_IMAGE_H__
 
+#include "pipe/p_state.h"
 #include "vk_image.h"
 
 #include "rvgpu_winsys.h"
@@ -96,23 +97,15 @@ struct rvgpu_image {
 
 struct rvgpu_image_view {
    struct vk_image_view vk;
+   const struct rvgpu_image *image; /**< VkImageViewCreateInfo::image */
    
-   // image view
-   enum pipe_format format;
-   enum rvgpu_texture_dimension dim;
-   unsigned first_level, last_level;
-   unsigned first_layer, last_layer;
-   unsigned char swizzle[4];
-   const struct rvgpu_image *image;
+   enum pipe_format pformat;
 
-   unsigned nr_samples;
-
-   struct {
-      unsigned offset;
-      unsigned size;
-   } buf;
-
-   struct rvgpu_winsys_bo *bo;
+   struct pipe_sampler_view *sv;
+   struct pipe_image_view iv;
+   
+   struct pipe_surface *surface;    /* have we created a pipe surface for this? */
+   struct rvgpu_image_view *multisampler; //VK_EXT_multisampled_render_to_single_sampled
 };
 
 static VkResult rvgpu_image_create(VkDevice _device, 

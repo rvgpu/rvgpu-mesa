@@ -159,7 +159,7 @@ rvgpu_CreateImageView(VkDevice _device, const VkImageViewCreateInfo *pCreateInfo
    if (view == NULL)
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
   
-   view->format = rvgpu_vk_format_to_pipe_format(view->vk.format);
+   view->pformat = rvgpu_vk_format_to_pipe_format(view->vk.format);
    view->image = image;
 
    //TODO: set the view->iv and view->sv, 参考lvp_CreateImageView
