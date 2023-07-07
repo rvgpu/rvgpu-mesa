@@ -45,6 +45,7 @@
 #include "rvgpu_pipeline.h"
 #include "rvgpu_execute.h"
 #include "rvgpu_util.h"
+#include "rvgpu_conv.h"
 
 #define RVGPU_API_VERSION VK_MAKE_VERSION(1, 1, VK_HEADER_VERSION)
 
