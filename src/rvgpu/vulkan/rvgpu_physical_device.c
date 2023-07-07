@@ -242,18 +242,134 @@ rvgpu_get_physical_device_queue_family_properties(struct rvgpu_physical_device *
 static size_t
 rvgpu_max_descriptor_set_size()
 {
-   /* make sure that the entire descriptor set is addressable with a signed
-    * 32-bit int. So the sum of all limits scaled by descriptor size has to
-    * be at most 2 GiB. the combined image & samples object count as one of
-    * both. This limit is for the pipeline layout, not for the set layout, but
-    * there is no set limit, so we just set a pipeline limit. I don't think
-    * any app is going to hit this soon. */
-   return ((1ull << 31) - 16 * MAX_DYNAMIC_BUFFERS -
-           MAX_INLINE_UNIFORM_BLOCK_SIZE * MAX_INLINE_UNIFORM_BLOCK_COUNT) /
-          (32 /* uniform buffer, 32 due to potential space wasted on alignment */ +
-           32 /* storage buffer, 32 due to potential space wasted on alignment */ +
-           32 /* sampler, largest when combined with image */ + 64 /* sampled image */ +
-           64 /* storage image */);
+    /* make sure that the entire descriptor set is addressable with a signed
+     * 32-bit int. So the sum of all limits scaled by descriptor size has to
+     * be at most 2 GiB. the combined image & samples object count as one of
+     * both. This limit is for the pipeline layout, not for the set layout, but
+     * there is no set limit, so we just set a pipeline limit. I don't think
+     * any app is going to hit this soon. */
+    return ((1ull << 31) - 16 * MAX_DYNAMIC_BUFFERS -
+            MAX_INLINE_UNIFORM_BLOCK_SIZE * MAX_INLINE_UNIFORM_BLOCK_COUNT) /
+           (32 /* uniform buffer, 32 due to potential space wasted on alignment */ +
+            32 /* storage buffer, 32 due to potential space wasted on alignment */ +
+            32 /* sampler, largest when combined with image */ + 64 /* sampled image */ +
+            64 /* storage image */);
+}
+
+static void
+init_device_limits(struct rvgpu_physical_device *pdev)
+{
+    VkSampleCountFlags sample_counts = 0xf;
+    size_t max_descriptor_set_size = rvgpu_max_descriptor_set_size();
+    VkPhysicalDeviceLimits limits = {
+            .maxImageDimension1D = (1 << 14),
+            .maxImageDimension2D = (1 << 14),
+            .maxImageDimension3D = (1 << 11),
+            .maxImageDimensionCube = (1 << 14),
+            .maxImageArrayLayers = (1 << 11),
+            .maxTexelBufferElements = UINT32_MAX,
+            .maxUniformBufferRange = UINT32_MAX,
+            .maxStorageBufferRange = UINT32_MAX,
+            .maxPushConstantsSize = MAX_PUSH_CONSTANTS_SIZE,
+            .maxMemoryAllocationCount = UINT32_MAX,
+            .maxSamplerAllocationCount = 64 * 1024,
+            .bufferImageGranularity = 1,
+            .sparseAddressSpaceSize = RVGPU_MAX_MEMORY_ALLOCATION_SIZE, /* buffer max size */
+            .maxBoundDescriptorSets = MAX_SETS,
+            .maxPerStageDescriptorSamplers = max_descriptor_set_size,
+            .maxPerStageDescriptorUniformBuffers = max_descriptor_set_size,
+            .maxPerStageDescriptorStorageBuffers = max_descriptor_set_size,
+            .maxPerStageDescriptorSampledImages = max_descriptor_set_size,
+            .maxPerStageDescriptorStorageImages = max_descriptor_set_size,
+            .maxPerStageDescriptorInputAttachments = max_descriptor_set_size,
+            .maxPerStageResources = max_descriptor_set_size,
+            .maxDescriptorSetSamplers = max_descriptor_set_size,
+            .maxDescriptorSetUniformBuffers = max_descriptor_set_size,
+            .maxDescriptorSetUniformBuffersDynamic = MAX_DYNAMIC_UNIFORM_BUFFERS,
+            .maxDescriptorSetStorageBuffers = max_descriptor_set_size,
+            .maxDescriptorSetStorageBuffersDynamic = MAX_DYNAMIC_STORAGE_BUFFERS,
+            .maxDescriptorSetSampledImages = max_descriptor_set_size,
+            .maxDescriptorSetStorageImages = max_descriptor_set_size,
+            .maxDescriptorSetInputAttachments = max_descriptor_set_size,
+            .maxVertexInputAttributes = MAX_VERTEX_ATTRIBS,
+            .maxVertexInputBindings = MAX_VBS,
+            .maxVertexInputAttributeOffset = UINT32_MAX,
+            .maxVertexInputBindingStride = 2048,
+            .maxVertexOutputComponents = 128,
+            .maxTessellationGenerationLevel = 64,
+            .maxTessellationPatchSize = 32,
+            .maxTessellationControlPerVertexInputComponents = 128,
+            .maxTessellationControlPerVertexOutputComponents = 128,
+            .maxTessellationControlPerPatchOutputComponents = 120,
+            .maxTessellationControlTotalOutputComponents = 4096,
+            .maxTessellationEvaluationInputComponents = 128,
+            .maxTessellationEvaluationOutputComponents = 128,
+            .maxGeometryShaderInvocations = 127,
+            .maxGeometryInputComponents = 64,
+            .maxGeometryOutputComponents = 128,
+            .maxGeometryOutputVertices = 256,
+            .maxGeometryTotalOutputComponents = 1024,
+            .maxFragmentInputComponents = 128,
+            .maxFragmentOutputAttachments = 8,
+            .maxFragmentDualSrcAttachments = 1,
+            .maxFragmentCombinedOutputResources = max_descriptor_set_size,
+            .maxComputeSharedMemorySize = 32768,
+            .maxComputeWorkGroupCount = {65535, 65535, 65535},
+            .maxComputeWorkGroupInvocations = 1024,
+            .maxComputeWorkGroupSize = {1024, 1024, 1024},
+            .subPixelPrecisionBits = 8,
+            .subTexelPrecisionBits = 8,
+            .mipmapPrecisionBits = 8,
+            .maxDrawIndexedIndexValue = UINT32_MAX,
+            .maxDrawIndirectCount = UINT32_MAX,
+            .maxSamplerLodBias = 16,
+            .maxSamplerAnisotropy = 16,
+            .maxViewports = MAX_VIEWPORTS,
+            .maxViewportDimensions = {(1 << 14), (1 << 14)},
+            .viewportBoundsRange = {INT16_MIN, INT16_MAX},
+            .viewportSubPixelBits = 8,
+            .minMemoryMapAlignment = 4096, /* A page */
+            .minTexelBufferOffsetAlignment = 4,
+            .minUniformBufferOffsetAlignment = 4,
+            .minStorageBufferOffsetAlignment = 4,
+            .minTexelOffset = -32,
+            .maxTexelOffset = 31,
+            .minTexelGatherOffset = -32,
+            .maxTexelGatherOffset = 31,
+            .minInterpolationOffset = -2,
+            .maxInterpolationOffset = 2,
+            .subPixelInterpolationOffsetBits = 8,
+            .maxFramebufferWidth = MAX_FRAMEBUFFER_WIDTH,
+            .maxFramebufferHeight = MAX_FRAMEBUFFER_HEIGHT,
+            .maxFramebufferLayers = (1 << 10),
+            .framebufferColorSampleCounts = sample_counts,
+            .framebufferDepthSampleCounts = sample_counts,
+            .framebufferStencilSampleCounts = sample_counts,
+            .framebufferNoAttachmentsSampleCounts = sample_counts,
+            .maxColorAttachments = MAX_RTS,
+            .sampledImageColorSampleCounts = sample_counts,
+            .sampledImageIntegerSampleCounts = sample_counts,
+            .sampledImageDepthSampleCounts = sample_counts,
+            .sampledImageStencilSampleCounts = sample_counts,
+            .storageImageSampleCounts = sample_counts,
+            .maxSampleMaskWords = 1,
+            .timestampComputeAndGraphics = true,
+            .timestampPeriod = 1.0,
+            .maxClipDistances = 8,
+            .maxCullDistances = 8,
+            .maxCombinedClipAndCullDistances = 8,
+            .discreteQueuePriorities = 2,
+            .pointSizeRange = {0.0, 8191.875},
+            .lineWidthRange = {0.0, 8.0},
+            .pointSizeGranularity = (1.0 / 8.0),
+            .lineWidthGranularity = (1.0 / 8.0),
+            .strictLines = false, /* FINISHME */
+            .standardSampleLocations = true,
+            .optimalBufferCopyOffsetAlignment = 1,
+            .optimalBufferCopyRowPitchAlignment = 1,
+            .nonCoherentAtomSize = 64,
+    };
+    pdev->device_limits = limits;
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -644,118 +760,6 @@ rvgpu_GetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
                                   VkPhysicalDeviceProperties *pProperties)
 {
    RVGPU_FROM_HANDLE(rvgpu_physical_device, pdevice, physicalDevice);
-   VkSampleCountFlags sample_counts = 0xf;
-   
-   size_t max_descriptor_set_size = rvgpu_max_descriptor_set_size();
-   
-   VkPhysicalDeviceLimits limits = {
-      .maxImageDimension1D = (1 << 14),
-      .maxImageDimension2D = (1 << 14),
-      .maxImageDimension3D = (1 << 11),
-      .maxImageDimensionCube = (1 << 14),
-      .maxImageArrayLayers = (1 << 11),
-      .maxTexelBufferElements = UINT32_MAX,
-      .maxUniformBufferRange = UINT32_MAX,
-      .maxStorageBufferRange = UINT32_MAX,
-      .maxPushConstantsSize = MAX_PUSH_CONSTANTS_SIZE,
-      .maxMemoryAllocationCount = UINT32_MAX,
-      .maxSamplerAllocationCount = 64 * 1024,
-      .bufferImageGranularity = 1,
-      .sparseAddressSpaceSize = RVGPU_MAX_MEMORY_ALLOCATION_SIZE, /* buffer max size */
-      .maxBoundDescriptorSets = MAX_SETS,
-      .maxPerStageDescriptorSamplers = max_descriptor_set_size,
-      .maxPerStageDescriptorUniformBuffers = max_descriptor_set_size,
-      .maxPerStageDescriptorStorageBuffers = max_descriptor_set_size,
-      .maxPerStageDescriptorSampledImages = max_descriptor_set_size,
-      .maxPerStageDescriptorStorageImages = max_descriptor_set_size,
-      .maxPerStageDescriptorInputAttachments = max_descriptor_set_size,
-      .maxPerStageResources = max_descriptor_set_size,
-      .maxDescriptorSetSamplers = max_descriptor_set_size,
-      .maxDescriptorSetUniformBuffers = max_descriptor_set_size,
-      .maxDescriptorSetUniformBuffersDynamic = MAX_DYNAMIC_UNIFORM_BUFFERS,
-      .maxDescriptorSetStorageBuffers = max_descriptor_set_size,
-      .maxDescriptorSetStorageBuffersDynamic = MAX_DYNAMIC_STORAGE_BUFFERS,
-      .maxDescriptorSetSampledImages = max_descriptor_set_size,
-      .maxDescriptorSetStorageImages = max_descriptor_set_size,
-      .maxDescriptorSetInputAttachments = max_descriptor_set_size,
-      .maxVertexInputAttributes = MAX_VERTEX_ATTRIBS,
-      .maxVertexInputBindings = MAX_VBS,
-      .maxVertexInputAttributeOffset = UINT32_MAX,
-      .maxVertexInputBindingStride = 2048,
-      .maxVertexOutputComponents = 128,
-      .maxTessellationGenerationLevel = 64,
-      .maxTessellationPatchSize = 32,
-      .maxTessellationControlPerVertexInputComponents = 128,
-      .maxTessellationControlPerVertexOutputComponents = 128,
-      .maxTessellationControlPerPatchOutputComponents = 120,
-      .maxTessellationControlTotalOutputComponents = 4096,
-      .maxTessellationEvaluationInputComponents = 128,
-      .maxTessellationEvaluationOutputComponents = 128,
-      .maxGeometryShaderInvocations = 127,
-      .maxGeometryInputComponents = 64,
-      .maxGeometryOutputComponents = 128,
-      .maxGeometryOutputVertices = 256,
-      .maxGeometryTotalOutputComponents = 1024,
-      .maxFragmentInputComponents = 128,
-      .maxFragmentOutputAttachments = 8,
-      .maxFragmentDualSrcAttachments = 1,
-      .maxFragmentCombinedOutputResources = max_descriptor_set_size,
-      .maxComputeSharedMemorySize = 32768, 
-      .maxComputeWorkGroupCount = {65535, 65535, 65535},
-      .maxComputeWorkGroupInvocations = 1024,
-      .maxComputeWorkGroupSize = {1024, 1024, 1024},
-      .subPixelPrecisionBits = 8,
-      .subTexelPrecisionBits = 8,
-      .mipmapPrecisionBits = 8,
-      .maxDrawIndexedIndexValue = UINT32_MAX,
-      .maxDrawIndirectCount = UINT32_MAX,
-      .maxSamplerLodBias = 16,
-      .maxSamplerAnisotropy = 16,
-      .maxViewports = MAX_VIEWPORTS,
-      .maxViewportDimensions = {(1 << 14), (1 << 14)},
-      .viewportBoundsRange = {INT16_MIN, INT16_MAX},
-      .viewportSubPixelBits = 8,
-      .minMemoryMapAlignment = 4096, /* A page */
-      .minTexelBufferOffsetAlignment = 4,
-      .minUniformBufferOffsetAlignment = 4,
-      .minStorageBufferOffsetAlignment = 4,
-      .minTexelOffset = -32,
-      .maxTexelOffset = 31,
-      .minTexelGatherOffset = -32,
-      .maxTexelGatherOffset = 31,
-      .minInterpolationOffset = -2,
-      .maxInterpolationOffset = 2,
-      .subPixelInterpolationOffsetBits = 8,
-      .maxFramebufferWidth = MAX_FRAMEBUFFER_WIDTH,
-      .maxFramebufferHeight = MAX_FRAMEBUFFER_HEIGHT,
-      .maxFramebufferLayers = (1 << 10),
-      .framebufferColorSampleCounts = sample_counts,
-      .framebufferDepthSampleCounts = sample_counts,
-      .framebufferStencilSampleCounts = sample_counts,
-      .framebufferNoAttachmentsSampleCounts = sample_counts,
-      .maxColorAttachments = MAX_RTS,
-      .sampledImageColorSampleCounts = sample_counts,
-      .sampledImageIntegerSampleCounts = sample_counts,
-      .sampledImageDepthSampleCounts = sample_counts,
-      .sampledImageStencilSampleCounts = sample_counts,
-      .storageImageSampleCounts = sample_counts,
-      .maxSampleMaskWords = 1,
-      .timestampComputeAndGraphics = true,
-      .timestampPeriod = 1.0,
-      .maxClipDistances = 8,
-      .maxCullDistances = 8,
-      .maxCombinedClipAndCullDistances = 8,
-      .discreteQueuePriorities = 2,
-      .pointSizeRange = {0.0, 8191.875},
-      .lineWidthRange = {0.0, 8.0},
-      .pointSizeGranularity = (1.0 / 8.0),
-      .lineWidthGranularity = (1.0 / 8.0),
-      .strictLines = false, /* FINISHME */
-      .standardSampleLocations = true,
-      .optimalBufferCopyOffsetAlignment = 1,
-      .optimalBufferCopyRowPitchAlignment = 1,
-      .nonCoherentAtomSize = 64,
-   };
    
    VkPhysicalDeviceType device_type;
    
@@ -767,7 +771,7 @@ rvgpu_GetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
       .vendorID = SIETIUM_VENDOR_ID,
       .deviceID = RVGPU_DEVICE_ID,
       .deviceType = device_type,
-      .limits = limits,
+      .limits = pdevice->device_limits,
       .sparseProperties =
          {
             .residencyNonResidentStrict = true,
@@ -895,7 +899,9 @@ rvgpu_physical_device_init(struct rvgpu_physical_device *device,
 
     rvgpu_physical_device_init_mem_types(device);
     rvgpu_physical_device_get_supported_extensions(device, &device->vk.supported_extensions);
-    
+ 
+    init_device_limits(device);
+
     result = rvgpu_wsi_init(device);
 
     if (result != VK_SUCCESS) { 

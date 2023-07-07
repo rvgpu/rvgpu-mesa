@@ -66,6 +66,8 @@ struct rvgpu_physical_device {
 
    struct vk_sync_timeline_type sync_timeline_type;
    const struct vk_sync_type *sync_types[3];
+
+   VkPhysicalDeviceLimits device_limits;
 };
 
 VkResult create_drm_physical_device(struct vk_instance *vk_instance, struct _drmDevice *device, struct vk_physical_device **out);

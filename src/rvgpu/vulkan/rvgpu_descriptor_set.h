@@ -86,4 +86,9 @@ struct rvgpu_descriptor_set_layout {
    struct rvgpu_descriptor_set_binding_layout binding[0];
 };
 
+struct rvgpu_pipeline_layout *
+rvgpu_pipeline_layout_create(struct rvgpu_device *device, 
+                             const VkPipelineLayoutCreateInfo* pCreateInfo,
+                             const VkAllocationCallbacks* pAllocator);
+
 #endif // RVGPU_DESCRIPTOR_SET_H__

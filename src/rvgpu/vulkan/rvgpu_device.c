@@ -37,7 +37,6 @@
       .name = str_name, .len = sizeof(str_name) - 1 \
    }
 
-
 static VkResult
 rvgpu_check_status(struct vk_device *vk_device)
 {
