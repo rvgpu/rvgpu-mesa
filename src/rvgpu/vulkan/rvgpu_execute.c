@@ -998,6 +998,35 @@ static void handle_begin_rendering(struct vk_cmd_queue_entry *cmd, struct render
         render_clear_fast(state);
 }
 
+static void set_viewport(unsigned first_viewport, unsigned viewport_count,
+                         const VkViewport* viewports,
+                         struct rendering_state *state)
+{
+   int i;
+   unsigned base = 0;
+   if (first_viewport == UINT32_MAX)
+      state->num_viewports = viewport_count;
+   else
+      base = first_viewport;
+
+   for (i = 0; i < viewport_count; i++) {
+      int idx = i + base;
+      const VkViewport *vp = &viewports[i];
+      get_viewport_xform(state, vp, idx);
+      set_viewport_depth_xform(state, idx);
+   }
+   state->vp_dirty = true;
+}
+
+static void handle_set_viewport(struct vk_cmd_queue_entry *cmd,
+                                struct rendering_state *state)
+{
+   set_viewport(cmd->u.set_viewport.first_viewport,
+                cmd->u.set_viewport.viewport_count,
+                cmd->u.set_viewport.viewports,
+                state);
+}
+
 static void handle_pipeline_barrier(struct vk_cmd_queue_entry *cmd,
                                     struct rendering_state *state)
 {
@@ -1142,7 +1171,7 @@ static void rvgpu_execute_cmd_buffer(struct rvgpu_cmd_buffer *cmd_buffer,
          handle_pipeline(cmd, state);
          break;
       case VK_CMD_SET_VIEWPORT:
-         // // handle_set_viewport(cmd, state);
+         handle_set_viewport(cmd, state);
          break;
       case VK_CMD_SET_VIEWPORT_WITH_COUNT:
          // // handle_set_viewport_with_count(cmd, state);
