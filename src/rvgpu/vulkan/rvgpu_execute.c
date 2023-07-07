@@ -1027,6 +1027,38 @@ static void handle_set_viewport(struct vk_cmd_queue_entry *cmd,
                 state);
 }
 
+static void set_scissor(unsigned first_scissor,
+                        unsigned scissor_count,
+                        const VkRect2D *scissors,
+                        struct rendering_state *state)
+{
+   int i;
+   unsigned base = 0;
+   if (first_scissor == UINT32_MAX)
+      state->num_scissors = scissor_count;
+   else
+      base = first_scissor;
+
+   for (i = 0; i < scissor_count; i++) {
+      int idx = i + base;
+      const VkRect2D *ss = &scissors[i];
+      state->scissors[idx].minx = ss->offset.x;
+      state->scissors[idx].miny = ss->offset.y;
+      state->scissors[idx].maxx = ss->offset.x + ss->extent.width;
+      state->scissors[idx].maxy = ss->offset.y + ss->extent.height;
+   }
+   state->scissor_dirty = true;
+}
+
+static void handle_set_scissor(struct vk_cmd_queue_entry *cmd,
+                               struct rendering_state *state)
+{
+   set_scissor(cmd->u.set_scissor.first_scissor,
+               cmd->u.set_scissor.scissor_count,
+               cmd->u.set_scissor.scissors,
+               state);
+}
+
 static void handle_pipeline_barrier(struct vk_cmd_queue_entry *cmd,
                                     struct rendering_state *state)
 {
@@ -1177,7 +1209,7 @@ static void rvgpu_execute_cmd_buffer(struct rvgpu_cmd_buffer *cmd_buffer,
          // // handle_set_viewport_with_count(cmd, state);
          break;
       case VK_CMD_SET_SCISSOR:
-         // // handle_set_scissor(cmd, state);
+         handle_set_scissor(cmd, state);
          break;
       case VK_CMD_SET_SCISSOR_WITH_COUNT:
          // // handle_set_scissor_with_count(cmd, state);
