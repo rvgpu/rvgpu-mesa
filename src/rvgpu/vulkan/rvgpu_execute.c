@@ -1754,7 +1754,7 @@ static void rvgpu_execute_cmd_buffer(struct rvgpu_cmd_buffer *cmd_buffer,
          // handle_set_color_write_enable(cmd, state);
          break;
       case VK_CMD_BEGIN_RENDERING:
-         // handle_begin_rendering(cmd, state);
+         handle_begin_rendering(cmd, state);
          break;
       case VK_CMD_END_RENDERING:
          // handle_end_rendering(cmd, state);
