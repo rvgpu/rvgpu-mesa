@@ -26,6 +26,8 @@
  */
 
 #include "cso_cache/cso_context.h"
+#include "util/u_upload_mgr.h"
+#include "util/u_prim.h"
 
 #include "vk_cmd_enqueue_entrypoints.h"
 #include "vk_util.h"
@@ -197,6 +199,327 @@ static void finish_fence(struct rendering_state *state)
     state->pctx->screen->fence_finish(state->pctx->screen, NULL, handle, PIPE_TIMEOUT_INFINITE);
     state->pctx->screen->fence_reference(state->pctx->screen, &handle, NULL);
 #endif
+}
+
+static unsigned
+get_pcbuf_size(struct rendering_state *state, enum pipe_shader_type pstage)
+{
+    bool is_compute = pstage == MESA_SHADER_COMPUTE;
+    return state->has_pcbuf[pstage] ? state->push_size[is_compute] : 0;
+}
+
+static unsigned
+calc_ubo0_size(struct rendering_state *state, enum pipe_shader_type pstage)
+{
+    unsigned size = get_pcbuf_size(state, pstage);
+    for (unsigned i = 0; i < state->uniform_blocks[pstage].count; i++)
+        size += state->uniform_blocks[pstage].size[i];
+    return size;
+}
+
+static void
+fill_ubo0(struct rendering_state *state, uint8_t *mem, enum pipe_shader_type pstage)
+{
+    unsigned push_size = get_pcbuf_size(state, pstage);
+    if (push_size)
+        memcpy(mem, state->push_constants, push_size);
+
+    mem += push_size;
+    for (unsigned i = 0; i < state->uniform_blocks[pstage].count; i++) {
+        unsigned size = state->uniform_blocks[pstage].size[i];
+        memcpy(mem, state->uniform_blocks[pstage].block[i], size);
+        mem += size;
+    }
+}
+
+static void
+update_pcbuf(struct rendering_state *state, enum pipe_shader_type pstage)
+{
+    unsigned size = calc_ubo0_size(state, pstage);
+    if (size) {
+        uint8_t *mem;
+        struct pipe_constant_buffer cbuf;
+        cbuf.buffer_size = size;
+        cbuf.buffer = NULL;
+        cbuf.user_buffer = NULL;
+        // u_upload_alloc(state->uploader, 0, size, 64, &cbuf.buffer_offset, &cbuf.buffer, (void**)&mem); TODO.zac
+        fill_ubo0(state, mem, pstage);
+        // state->pctx->set_constant_buffer(state->pctx, pstage, 0, true, &cbuf); TODO.zac
+    }
+    state->pcbuf_dirty[pstage] = false;
+}
+
+static inline gl_shader_stage
+tgsi_processor_to_shader_stage(unsigned processor)
+{
+   return (gl_shader_stage)processor;
+}
+
+static void
+update_inline_shader_state(struct rendering_state *state, enum pipe_shader_type sh, bool pcbuf_dirty, bool constbuf_dirty)
+{
+    unsigned stage = tgsi_processor_to_shader_stage(sh);
+    state->inlines_dirty[sh] = false;
+    struct rvgpu_shader *shader = state->shaders[stage];
+    if (!shader || !shader->inlines.can_inline)
+        return;
+    struct rvgpu_inline_variant v;
+    v.mask = shader->inlines.can_inline;
+    /* these buffers have already been flushed in llvmpipe, so they're safe to read */
+    nir_shader *base_nir = shader->pipeline_nir->nir;
+    if (stage == MESA_SHADER_TESS_EVAL && state->tess_ccw)
+        base_nir = shader->tess_ccw->nir;
+    nir_function_impl *impl = nir_shader_get_entrypoint(base_nir);
+    unsigned ssa_alloc = impl->ssa_alloc;
+    unsigned count = shader->inlines.count[0];
+    if (count && pcbuf_dirty) {
+        unsigned push_size = get_pcbuf_size(state, sh);
+        for (unsigned i = 0; i < count; i++) {
+            unsigned offset = shader->inlines.uniform_offsets[0][i];
+            if (offset < push_size) {
+                memcpy(&v.vals[0][i], &state->push_constants[offset], sizeof(uint32_t));
+            } else {
+                for (unsigned i = 0; i < state->uniform_blocks[sh].count; i++) {
+                    if (offset < push_size + state->uniform_blocks[sh].size[i]) {
+                        unsigned ubo_offset = offset - push_size;
+                        uint8_t *block = state->uniform_blocks[sh].block[i];
+                        memcpy(&v.vals[0][i], &block[ubo_offset], sizeof(uint32_t));
+                        break;
+                    }
+                    push_size += state->uniform_blocks[sh].size[i];
+                }
+            }
+        }
+        for (unsigned i = count; i < MAX_INLINABLE_UNIFORMS; i++)
+            v.vals[0][i] = 0;
+    }
+    if (constbuf_dirty) {
+        struct pipe_box box = {0};
+        u_foreach_bit(slot, shader->inlines.can_inline) {
+            /* this is already inlined above */
+            if (slot == 0)
+                continue;
+            unsigned count = shader->inlines.count[slot];
+            struct pipe_constant_buffer *cbuf = &state->const_buffer[sh][slot - 1];
+            struct pipe_resource *pres = cbuf->buffer;
+            box.x = cbuf->buffer_offset;
+            box.width = cbuf->buffer_size - cbuf->buffer_offset;
+            struct pipe_transfer *xfer;
+            uint8_t *map = state->pctx->buffer_map(state->pctx, pres, 0, PIPE_MAP_READ, &box, &xfer);
+            for (unsigned i = 0; i < count; i++) {
+                unsigned offset = shader->inlines.uniform_offsets[slot][i];
+                memcpy(&v.vals[slot][i], map + offset, sizeof(uint32_t));
+            }
+            state->pctx->buffer_unmap(state->pctx, xfer);
+            for (unsigned i = count; i < MAX_INLINABLE_UNIFORMS; i++)
+                v.vals[slot][i] = 0;
+        }
+    }
+    bool found = false;
+    struct set_entry *entry = _mesa_set_search_or_add_pre_hashed(&shader->inlines.variants, v.mask, &v, &found);
+    void *shader_state;
+    if (found) {
+        const struct rvgpu_inline_variant *variant = entry->key;
+        shader_state = variant->cso;
+    } else {
+        nir_shader *nir = nir_shader_clone(NULL, base_nir);
+        NIR_PASS_V(nir, rvgpu_inline_uniforms, shader, v.vals[0], 0);
+        if (constbuf_dirty) {
+            u_foreach_bit(slot, shader->inlines.can_inline)
+                NIR_PASS_V(nir, rvgpu_inline_uniforms, shader, v.vals[slot], slot);
+        }
+        rvgpu_shader_optimize(nir);
+        impl = nir_shader_get_entrypoint(nir);
+        if (ssa_alloc - impl->ssa_alloc < ssa_alloc / 2 &&
+            !shader->inlines.must_inline) {
+            /* not enough change; don't inline further */
+            shader->inlines.can_inline = 0;
+            ralloc_free(nir);
+            shader->shader_cso = rvgpu_shader_compile(state->device, shader, nir_shader_clone(NULL, shader->pipeline_nir->nir));
+            _mesa_set_remove(&shader->inlines.variants, entry);
+            shader_state = shader->shader_cso;
+        } else {
+            shader_state = rvgpu_shader_compile(state->device, shader, nir);
+            struct rvgpu_inline_variant *variant = mem_dup(&v, sizeof(v));
+            variant->cso = shader_state;
+            entry->key = variant;
+        }
+    }
+#if 0 // TODO.zac
+    switch (sh) {
+        case MESA_SHADER_VERTEX:
+            state->pctx->bind_vs_state(state->pctx, shader_state);
+            break;
+        case MESA_SHADER_TESS_CTRL:
+            state->pctx->bind_tcs_state(state->pctx, shader_state);
+            break;
+        case MESA_SHADER_TESS_EVAL:
+            state->pctx->bind_tes_state(state->pctx, shader_state);
+            break;
+        case MESA_SHADER_GEOMETRY:
+            state->pctx->bind_gs_state(state->pctx, shader_state);
+            break;
+        case MESA_SHADER_FRAGMENT:
+            state->pctx->bind_fs_state(state->pctx, shader_state);
+            state->noop_fs_bound = false;
+            break;
+        case MESA_SHADER_COMPUTE:
+            state->pctx->bind_compute_state(state->pctx, shader_state);
+            break;
+        default: break;
+    }
+#endif
+}
+
+static void emit_state(struct rendering_state *state)
+{
+    int sh;
+    if (!state->shaders[MESA_SHADER_FRAGMENT] && !state->noop_fs_bound) {
+        // state->pctx->bind_fs_state(state->pctx, state->device->noop_fs);
+        state->noop_fs_bound = true;
+    }
+    if (state->blend_dirty) {
+        uint32_t mask = 0;
+        /* zero out the colormask values for disabled attachments */
+        if (state->color_write_disables) {
+            u_foreach_bit(att, state->color_write_disables) {
+                mask |= state->blend_state.rt[att].colormask << (att * 4);
+                state->blend_state.rt[att].colormask = 0;
+            }
+        }
+        // cso_set_blend(state->cso, &state->blend_state);  TODO.zac
+        /* reset colormasks using saved bitmask */
+        if (state->color_write_disables) {
+            const uint32_t att_mask = BITFIELD_MASK(4);
+            u_foreach_bit(att, state->color_write_disables) {
+                state->blend_state.rt[att].colormask = (mask >> (att * 4)) & att_mask;
+            }
+        }
+        state->blend_dirty = false;
+    }
+
+    if (state->rs_dirty) {
+        bool ms = state->rs_state.multisample;
+        if (state->disable_multisample &&
+            (state->gs_output_lines == GS_OUTPUT_LINES ||
+             (!state->shaders[MESA_SHADER_GEOMETRY] && u_reduced_prim(state->info.mode) == PIPE_PRIM_LINES)))
+            state->rs_state.multisample = false;
+        assert(offsetof(struct pipe_rasterizer_state, offset_clamp) - offsetof(struct pipe_rasterizer_state, offset_units) == sizeof(float) * 2);
+        if (state->depth_bias.enabled) {
+            memcpy(&state->rs_state.offset_units, &state->depth_bias, sizeof(float) * 3);
+            state->rs_state.offset_tri = true;
+            state->rs_state.offset_line = true;
+            state->rs_state.offset_point = true;
+        } else {
+            memset(&state->rs_state.offset_units, 0, sizeof(float) * 3);
+            state->rs_state.offset_tri = false;
+            state->rs_state.offset_line = false;
+            state->rs_state.offset_point = false;
+        }
+        // cso_set_rasterizer(state->cso, &state->rs_state); TODO.zac
+        state->rs_dirty = false;
+        state->rs_state.multisample = ms;
+    }
+
+    if (state->dsa_dirty) {
+        // cso_set_depth_stencil_alpha(state->cso, &state->dsa_state); TODO.zac
+        state->dsa_dirty = false;
+    }
+
+    if (state->sample_mask_dirty) {
+        // cso_set_sample_mask(state->cso, state->sample_mask); TODO.zac
+        state->sample_mask_dirty = false;
+    }
+
+    if (state->min_samples_dirty) {
+        // cso_set_min_samples(state->cso, state->min_samples);  TODO.zac
+        state->min_samples_dirty = false;
+    }
+
+    if (state->blend_color_dirty) {
+        // state->pctx->set_blend_color(state->pctx, &state->blend_color); TODO.zac
+        state->blend_color_dirty = false;
+    }
+
+    if (state->stencil_ref_dirty) {
+        // cso_set_stencil_ref(state->cso, state->stencil_ref); TODO.zac
+        state->stencil_ref_dirty = false;
+    }
+
+    if (state->vb_dirty) {
+        // cso_set_vertex_buffers(state->cso, state->start_vb, state->num_vb, 0, false, state->vb); TODO.zac
+        state->vb_dirty = false;
+    }
+
+    if (state->ve_dirty) {
+        // cso_set_vertex_elements(state->cso, &state->velem); TODO.zac
+        state->ve_dirty = false;
+    }
+
+    bool constbuf_dirty[MESA_SHADER_STAGES] = {false};
+    bool pcbuf_dirty[MESA_SHADER_STAGES] = {false};
+    for (sh = 0; sh < MESA_SHADER_COMPUTE; sh++) {
+        constbuf_dirty[sh] = state->constbuf_dirty[sh];
+#if 0 // TODO.zac
+        if (state->constbuf_dirty[sh]) {
+            for (unsigned idx = 0; idx < state->num_const_bufs[sh]; idx++)
+                state->pctx->set_constant_buffer(state->pctx, sh, idx + 1, false, &state->const_buffer[sh][idx]);
+        }
+#endif
+        state->constbuf_dirty[sh] = false;
+    }
+
+    for (sh = 0; sh < MESA_SHADER_COMPUTE; sh++) {
+        pcbuf_dirty[sh] = state->pcbuf_dirty[sh];
+        if (state->pcbuf_dirty[sh])
+            update_pcbuf(state, sh);
+    }
+
+    for (sh = 0; sh < MESA_SHADER_COMPUTE; sh++) {
+        if (state->inlines_dirty[sh])
+            update_inline_shader_state(state, sh, pcbuf_dirty[sh], constbuf_dirty[sh]);
+    }
+
+    for (sh = 0; sh < MESA_SHADER_COMPUTE; sh++) {
+        if (state->sb_dirty[sh]) {
+            state->pctx->set_shader_buffers(state->pctx, sh,
+                                            0, state->num_shader_buffers[sh],
+                                            state->sb[sh], state->access[tgsi_processor_to_shader_stage(sh)].buffers_written);
+        }
+    }
+
+    for (sh = 0; sh < MESA_SHADER_COMPUTE; sh++) {
+        if (state->iv_dirty[sh]) {
+            state->pctx->set_shader_images(state->pctx, sh,
+                                           0, state->num_shader_images[sh], 0,
+                                           state->iv[sh]);
+        }
+    }
+
+    for (sh = 0; sh < MESA_SHADER_COMPUTE; sh++) {
+        if (state->sv_dirty[sh]) {
+            state->pctx->set_sampler_views(state->pctx, sh, 0, state->num_sampler_views[sh],
+                                           0, false, state->sv[sh]);
+            state->sv_dirty[sh] = false;
+        }
+    }
+
+    for (sh = 0; sh < MESA_SHADER_COMPUTE; sh++) {
+        if (state->ss_dirty[sh]) {
+            // cso_set_samplers(state->cso, sh, state->num_sampler_states[sh], state->cso_ss_ptr[sh]); TODO.zac
+            state->ss_dirty[sh] = false;
+        }
+    }
+
+    if (state->vp_dirty) {
+        // state->pctx->set_viewport_states(state->pctx, 0, state->num_viewports, state->viewports); TODO.zac
+        state->vp_dirty = false;
+    }
+
+    if (state->scissor_dirty) {
+        // state->pctx->set_scissor_states(state->pctx, 0, state->num_scissors, state->scissors); TODO.zac
+        state->scissor_dirty = false;
+    }
 }
 
 static void
@@ -1245,7 +1568,7 @@ static void rvgpu_execute_cmd_buffer(struct rvgpu_cmd_buffer *cmd_buffer,
          // handle_vertex_buffers2(cmd, state);
          break;
       case VK_CMD_DRAW:
-         // emit_state(state);
+         emit_state(state);
          // handle_draw(cmd, state);
          break;
       case VK_CMD_DRAW_MULTI_EXT:

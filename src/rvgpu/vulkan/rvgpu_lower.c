@@ -123,7 +123,7 @@ optimize(nir_shader *nir)
     } while (progress);
 }
 
-static void
+void
 rvgpu_shader_optimize(nir_shader *nir)
 {
    optimize(nir);

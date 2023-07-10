@@ -131,6 +131,9 @@ get_binding_layout(const struct rvgpu_pipeline_layout *layout,
     return &get_set_layout(layout, set)->binding[binding];
 }
 
+void rvgpu_shader_optimize(nir_shader *nir);
+void rvgpu_inline_uniforms(nir_shader *nir, const struct rvgpu_shader *shader, const uint32_t *uniform_values, uint32_t ubo);
+
 void rvgpu_lower_pipeline_layout(const struct rvgpu_device *device,
                                  struct rvgpu_pipeline_layout *layout,
                                  nir_shader *shader);
