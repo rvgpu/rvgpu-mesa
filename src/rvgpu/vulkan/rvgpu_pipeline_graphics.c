@@ -633,16 +633,6 @@ rvgpu_graphics_pipeline_create(VkDevice _device, VkPipelineCache _cache,
   
 }
 
-void *
-rvgpu_shader_compile(struct rvgpu_device *device, struct rvgpu_shader *shader, nir_shader *nir)
-{
-#if 0
-   device->physical_device->pscreen->finalize_nir(device->physical_device->pscreen, nir);
-   return rvgpu_shader_compile_stage(device, shader, nir);
-#endif
-   return NULL;
-}
-
 void
 rvgpu_pipeline_shaders_compile(struct rvgpu_pipeline *pipeline)
 {
