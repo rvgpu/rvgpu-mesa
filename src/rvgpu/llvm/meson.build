@@ -1,4 +1,4 @@
-# Copyright © 2023 Inc.
+# Copyright © 2019 Valve Corporation
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -18,10 +18,20 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-inc_rvgpu = include_directories('.')
-inc_rvgpu_common_llvm = include_directories('llvm')
+rvgpu_common_llvm_files = files(
+  'rc_llvm_util.c',
+  'rc_llvm_util.h',
+)
 
-if with_rvgpu_vk
-  subdir('llvm')
-  subdir('vulkan')
-endif
+librvgpu_common_llvm = static_library(
+  'rvgpu_common_llvm',
+  [rvgpu_common_llvm_files],
+  include_directories : [
+    inc_include, inc_src, inc_mapi, inc_mesa, inc_gallium, inc_gallium_aux, inc_compiler,
+  ],
+  dependencies : [
+    dep_llvm, dep_thread, dep_elf, dep_valgrind, idep_nir_headers, 
+  ],
+  gnu_symbol_visibility : 'hidden',
+)
+

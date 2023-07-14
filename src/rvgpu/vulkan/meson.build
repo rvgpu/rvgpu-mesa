@@ -72,8 +72,10 @@ libvulkan_rvgpu = shared_library(
     inc_mesa,
     inc_gallium,
     inc_compiler,
+    inc_rvgpu_common_llvm,
   ],
   link_with : [
+    librvgpu_common_llvm,
   ],
   dependencies : [
     dep_libdrm,

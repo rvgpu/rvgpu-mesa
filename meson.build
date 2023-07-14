@@ -1622,6 +1622,9 @@ if with_clc
   # windowsdriver is needded with LLVM>=15, but we don't know what LLVM verrsion we are using yet
   llvm_optional_modules += ['all-targets', 'windowsdriver']
 endif
+if with_rvgpu_vk
+    llvm_modules += ['riscv']
+endif
 draw_with_llvm = get_option('draw-use-llvm')
 if draw_with_llvm
   llvm_modules += 'native'
