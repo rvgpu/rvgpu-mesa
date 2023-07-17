@@ -25,15 +25,35 @@
  * IN THE SOFTWARE.
  */
 
+#include <llvm-c/Core.h>
+
 #include "nir/nir.h"
 
 #include "rc_llvm_util.h"
+#include "rc_llvm_build.h"
 
 #include "rvgpu_private.h"
 #include "rvgpu_llvm_helper.h"
+
+static LLVMModuleRef
+rc_translate_nir_to_llvm(struct rc_llvm_compiler *rc_llvm, struct nir_shader *nir)
+{
+   struct rc_llvm_context rc;
+   rc_llvm_context_init(&rc, rc_llvm);
+
+   struct rc_llvm_pointer main_function;
+   // rc_build_main(rc_context, calling_convention, )
+   main_function = rc_build_main(&rc);
+
+   return NULL;
+}
+
 
 void rvgpu_llvm_compile_shader(struct nir_shader *shader) {
    struct rc_llvm_compiler rc_llvm;
 
    rvgpu_init_llvm_compiler(&rc_llvm);
+
+   LLVMModuleRef llvm_module;
+   llvm_module = rc_translate_nir_to_llvm(&rc_llvm, shader);
 }
