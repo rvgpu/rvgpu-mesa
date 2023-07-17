@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 rvgpu_common_llvm_files = files(
-  'rc_llvm_util.c',
+  'rc_llvm_util.cpp',
   'rc_llvm_util.h',
 )
 

@@ -148,10 +148,13 @@ VkResult vk_pipeline_shader_stage_to_nir(struct vk_device *device,
                                          const struct nir_shader_compiler_options *nir_options,
                                          void *mem_ctx, nir_shader **nir_out);
 
-void *rvgpu_shader_compile(struct rvgpu_device *device, struct rvgpu_shader *shader, nir_shader *nir);
+void *rvgpu_shader_compile(struct rvgpu_device *device, struct rvgpu_shader *shader, struct nir_shader *nir);
 void rvgpu_pipeline_shaders_compile(struct rvgpu_pipeline *pipeline);
 
 void rvgpu_pipeline_init(struct rvgpu_device *device, struct rvgpu_pipeline *pipeline);
 void rvgpu_pipeline_destroy(struct rvgpu_device *device, struct rvgpu_pipeline *pipeline,
                        const VkAllocationCallbacks *allocator);
+
+void rvgpu_llvm_compile_shader(struct nir_shader *shader);
+
 #endif // RVGPU_PIPELINE_H__

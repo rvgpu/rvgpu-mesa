@@ -29,6 +29,7 @@
 #define RC_LLVM_UTILS_H__
 
 #include <stdbool.h>
+#include <llvm-c/TargetMachine.h>
 
 #include "util/macros.h"
 
@@ -36,8 +37,33 @@
 extern "C" {
 #endif
 
+struct rc_compiler_passes;
+
+/* Per-thread persistent LLVM objects. */
+struct rc_llvm_compiler {
+   LLVMTargetLibraryInfoRef target_library_info;
+   LLVMPassManagerRef passmgr;
+
+   /* Default compiler. */
+   LLVMTargetMachineRef tm;
+   struct rc_compiler_passes *passes;
+
+   /* Optional compiler for faster compilation with fewer optimizations.
+    * LLVM modules can be created with "tm" too. There is no difference.
+    */
+   LLVMTargetMachineRef low_opt_tm; /* uses -O1 instead of -O2 */
+   struct rc_compiler_passes *low_opt_passes;
+};
+
 PUBLIC void rc_init_shared_llvm_once(void); /* Do not use directly, use rc_init_llvm_once */
 void rc_init_llvm_once(void);
+
+/* RC Compiler interface */
+bool rc_init_llvm_compiler(struct rc_llvm_compiler *compiler);
+void rc_destroy_llvm_compiler(struct rc_llvm_compiler *compiler);
+
+struct rc_compiler_passes *rc_create_llvm_passes(LLVMTargetMachineRef tm);
+bool rc_compile_module_to_elf(struct rc_compiler_passes *p, LLVMModuleRef module, char **pelf_buffer, size_t *pelf_size);
 
 #ifdef __cplusplus
 }

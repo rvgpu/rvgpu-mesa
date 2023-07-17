@@ -55,7 +55,9 @@ rvgpu_files = files(
     'rvgpu_wsi.c',
     'rvgpu_execute.c',
     'rvgpu_sync.c',
-    'rvgpu_shader.c'
+    'rvgpu_shader.c',
+    'rvgpu_nir_to_llvm.c',
+    'rvgpu_llvm_helper.cpp',
 )
 
 rvgpu_flags = [
