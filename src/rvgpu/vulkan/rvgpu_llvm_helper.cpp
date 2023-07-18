@@ -86,3 +86,25 @@ rvgpu_init_llvm_compiler(struct rc_llvm_compiler *info) {
    return true;
 }
 
+bool
+rvgpu_compile_to_elf(struct rc_llvm_compiler *info, LLVMModuleRef module, char **pelf_buffer, size_t *pelf_size)
+{
+   rvgpu_llvm_per_thread_info *thread_info = nullptr;
+
+   for (auto &I : rvgpu_llvm_per_thread_list) {
+      if (I.llvm_info.tm == info->tm) {
+         thread_info = &I;
+         break;
+      }
+   }
+
+   if (!thread_info) {
+      struct rc_compiler_passes *passes = rc_create_llvm_passes(info->tm);
+      bool ret = rc_compile_module_to_elf(passes, module, pelf_buffer, pelf_size);
+      rc_destroy_llvm_passes(passes);
+      return ret;
+   }
+
+   return thread_info->compile_to_memory_buffer(module, pelf_buffer, pelf_size);
+}
+

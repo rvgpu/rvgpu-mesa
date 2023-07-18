@@ -142,6 +142,11 @@ struct rc_compiler_passes *rc_create_llvm_passes(LLVMTargetMachineRef tm)
    return p;
 }
 
+void rc_destroy_llvm_passes(struct rc_compiler_passes *p)
+{
+   delete p;
+}
+
 /* This returns false on failure. */
 bool rc_compile_module_to_elf(struct rc_compiler_passes *p, LLVMModuleRef module, char **pelf_buffer, size_t *pelf_size)
 {
@@ -197,7 +202,7 @@ LLVMPassManagerRef rc_create_passmgr(LLVMTargetLibraryInfoRef target_library_inf
    
    if (target_library_info)
       LLVMAddTargetLibraryInfo(target_library_info, passmgr);
- 
+#if 0
 #if 0  // TODO: zac
    if (check_ir)
       unwrap(passmgr)->add(createMachineVerifierPass("mesa ir"));
@@ -224,6 +229,7 @@ LLVMPassManagerRef rc_create_passmgr(LLVMTargetLibraryInfoRef target_library_inf
    /* This is recommended by the instruction combining pass. */
    llvm::unwrap(passmgr)->add(llvm::createEarlyCSEPass(true));
    llvm::unwrap(passmgr)->add(llvm::createInstructionCombiningPass());
+#endif
    return passmgr;
 }
 

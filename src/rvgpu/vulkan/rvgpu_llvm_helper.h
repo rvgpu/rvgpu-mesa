@@ -28,11 +28,14 @@
 #ifndef RVGPU_LLVM_HELPER_H__
 #define RVGPU_LLVM_HELPER_H__
 
+#include <llvm-c/Core.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 bool rvgpu_init_llvm_compiler(struct rc_llvm_compiler *info);
+bool rvgpu_compile_to_elf(struct rc_llvm_compiler *info, LLVMModuleRef module, char **pelf_buffer, size_t *pelf_size);
 
 #ifdef __cplusplus
 }

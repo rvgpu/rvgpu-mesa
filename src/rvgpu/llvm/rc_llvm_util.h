@@ -63,7 +63,10 @@ bool rc_init_llvm_compiler(struct rc_llvm_compiler *compiler);
 void rc_destroy_llvm_compiler(struct rc_llvm_compiler *compiler);
 
 struct rc_compiler_passes *rc_create_llvm_passes(LLVMTargetMachineRef tm);
+void rc_destroy_llvm_passes(struct rc_compiler_passes *p);
 bool rc_compile_module_to_elf(struct rc_compiler_passes *p, LLVMModuleRef module, char **pelf_buffer, size_t *pelf_size);
+
+void rc_disassemble(char *buffer, uint32_t size);
 
 #ifdef __cplusplus
 }

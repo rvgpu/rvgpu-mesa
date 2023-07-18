@@ -45,9 +45,11 @@ rc_translate_nir_to_llvm(struct rc_llvm_compiler *rc_llvm, struct nir_shader *ni
    // rc_build_main(rc_context, calling_convention, )
    main_function = rc_build_main(&rc);
 
-   return NULL;
-}
+   // LLVMRunPassManager(rc_llvm->passmgr, rc.module);
+   LLVMDisposeBuilder(rc.builder);
 
+   return rc.module;
+}
 
 void rvgpu_llvm_compile_shader(struct nir_shader *shader) {
    struct rc_llvm_compiler rc_llvm;
@@ -56,4 +58,17 @@ void rvgpu_llvm_compile_shader(struct nir_shader *shader) {
 
    LLVMModuleRef llvm_module;
    llvm_module = rc_translate_nir_to_llvm(&rc_llvm, shader);
+
+   printf("DUMP LLVMIR\n");
+   char *str = LLVMPrintModuleToString(llvm_module);
+   printf("%s", str);
+
+   char *elf_buffer = NULL;
+   size_t elf_size = 0;
+   LLVMContextRef llvm_ctx;
+
+   llvm_ctx = LLVMGetModuleContext(llvm_module);
+   rvgpu_compile_to_elf(&rc_llvm, llvm_module, &elf_buffer, &elf_size);
+
+   rc_disassemble(elf_buffer, elf_size);
 }
