@@ -40,7 +40,8 @@
 void rc_disassemble(char *bytes, uint32_t bufsize) {
     printf("RISC-V Binary:\n");
     const char *triple = "riscv64-unknown-linux-gnu";
-    LLVMDisasmContextRef D = LLVMCreateDisasm(triple, NULL, 0, NULL, NULL);
+    const char *mcpu = "rvgpu";
+    LLVMDisasmContextRef D = LLVMCreateDisasmCPU(triple, mcpu, NULL, 0, NULL, NULL);
     char outline[1024];
 
     bytes = bytes + 0x40;

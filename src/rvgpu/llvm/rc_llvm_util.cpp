@@ -176,7 +176,7 @@ static LLVMTargetMachineRef rc_create_target_machine(LLVMCodeGenOptLevel level, 
    const char *triple = "riscv64-unknown-linux-gnu";
    LLVMTargetRef target = rc_get_llvm_target(triple);
 
-   const char *name = "generic-rv64";
+   const char *name = "rvgpu";
 
    LLVMTargetMachineRef tm =
       LLVMCreateTargetMachine(target, triple, name, "", level,
