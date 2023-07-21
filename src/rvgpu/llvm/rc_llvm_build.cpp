@@ -70,7 +70,7 @@ struct rc_llvm_pointer rc_build_main(struct rc_llvm_context *ctx)
    arg_types[0] = LLVMInt64TypeInContext(ctx->context);
    arg_types[1] = LLVMInt32TypeInContext(ctx->context);
    LLVMTypeRef ret_type;
-   ret_type = LLVMInt64TypeInContext(ctx->context);
+   ret_type = LLVMInt32TypeInContext(ctx->context);
 
    LLVMTypeRef main_function_type = LLVMFunctionType(ret_type, arg_types, 2, 0);
    LLVMValueRef main_function = LLVMAddFunction(ctx->module, "main", main_function_type);
@@ -80,13 +80,14 @@ struct rc_llvm_pointer rc_build_main(struct rc_llvm_context *ctx)
    LLVMSetFunctionCallConv(main_function, 0);
 
    // Test Zac
+#if 0
    LLVMValueRef a = LLVMGetParam(main_function, 0);
    LLVMValueRef b = LLVMGetParam(main_function, 1);
    LLVMValueRef c = LLVMBuildIntCast2(ctx->builder, b, LLVMTypeOf(a), 0, "c");
    LLVMValueRef ret = LLVMBuildAdd(ctx->builder, a, c, "sum");
 
    LLVMBuildRet(ctx->builder, ret);
-
+#endif
    ctx->main_function.value = main_function;
    ctx->main_function.pointee_type = main_function_type;
    return ctx->main_function;

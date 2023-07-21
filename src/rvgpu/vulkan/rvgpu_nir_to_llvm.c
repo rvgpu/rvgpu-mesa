@@ -34,6 +34,7 @@
 
 #include "rvgpu_private.h"
 #include "rvgpu_llvm_helper.h"
+#include "rc_nir_to_llvm.h"
 
 static LLVMModuleRef
 rc_translate_nir_to_llvm(struct rc_llvm_compiler *rc_llvm, struct nir_shader *nir)
@@ -45,6 +46,7 @@ rc_translate_nir_to_llvm(struct rc_llvm_compiler *rc_llvm, struct nir_shader *ni
    // rc_build_main(rc_context, calling_convention, )
    main_function = rc_build_main(&rc);
 
+    rc_nir_translate(&rc, nir);
    // LLVMRunPassManager(rc_llvm->passmgr, rc.module);
    LLVMDisposeBuilder(rc.builder);
 
@@ -63,6 +65,7 @@ void rvgpu_llvm_compile_shader(struct nir_shader *shader) {
    char *str = LLVMPrintModuleToString(llvm_module);
    printf("%s", str);
 
+#if 0
    char *elf_buffer = NULL;
    size_t elf_size = 0;
    LLVMContextRef llvm_ctx;
@@ -71,4 +74,5 @@ void rvgpu_llvm_compile_shader(struct nir_shader *shader) {
    rvgpu_compile_to_elf(&rc_llvm, llvm_module, &elf_buffer, &elf_size);
 
    rc_disassemble(elf_buffer, elf_size);
+#endif
 }
