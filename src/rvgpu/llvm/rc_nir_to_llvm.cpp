@@ -121,6 +121,11 @@ bool rc_nir_translate(struct rc_llvm_context *rc, struct nir_shader *nir) {
     struct rc_nir_context ctx= {0};
     struct nir_function *func;
 
+    nir_convert_from_ssa(nir, true);
+    nir_lower_locals_to_regs(nir);
+    nir_remove_dead_derefs(nir);
+    nir_remove_dead_variables(nir, nir_var_function_temp, NULL);
+
     ctx.rc = *rc;
     ctx.stage = nir->info.stage;
 
