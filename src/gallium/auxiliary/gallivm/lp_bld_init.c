@@ -283,7 +283,7 @@ init_gallivm_engine(struct gallivm_state *gallivm)
 
       ret = lp_build_create_jit_compiler_for_module(&gallivm->engine,
                                                     &gallivm->code,
-                                                    gallivm->cache,
+                                                    NULL,
                                                     gallivm->module,
                                                     gallivm->memorymgr,
                                                     (unsigned) optlevel,

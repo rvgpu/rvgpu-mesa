@@ -115,3 +115,82 @@ void rc_llvm_context_init(struct rc_llvm_context *ctx, struct rc_llvm_compiler *
 
    ctx->voidt = LLVMVoidTypeInContext(ctx->context);
 }
+
+static LLVMTypeRef
+build_elem_type(struct rc_llvm_context *ctx, struct rc_type type) {
+    if (type.floating) {
+        switch (type.width) {
+            case 16:
+                return LLVMHalfTypeInContext(ctx->context);
+            case 32:
+                return LLVMFloatTypeInContext(ctx->context);
+            case 64:
+                return LLVMDoubleTypeInContext(ctx->context);
+            default:
+                assert(0);
+                return LLVMFloatTypeInContext(ctx->context);
+        }
+    }
+    else {
+        return LLVMIntTypeInContext(ctx->context, type.width);
+    }
+}
+
+static LLVMTypeRef
+build_vec_type(struct rc_llvm_context *ctx, struct rc_type type) {
+    LLVMTypeRef elem_type = build_elem_type(ctx, type);
+    if (type.length == 1)
+        return elem_type;
+    else
+        return LLVMVectorType(elem_type, type.length);
+}
+
+static LLVMValueRef
+build_one(struct rc_llvm_context *ctx, struct rc_type type) {
+    LLVMTypeRef elem_type;
+    LLVMValueRef elems[MAX_VECTOR_LENGTH];
+
+    elem_type = build_elem_type(ctx, type);
+
+    if (type.floating) {
+        elems[0] = LLVMConstReal(elem_type, 1.0);
+    } else if (type.fixed) {
+        elems[0] = LLVMConstInt(elem_type, 1LL << (type.width/2), 0);
+    } else if (!type.norm) {
+        elems[0] = LLVMConstInt(elem_type, 1, 0);
+    } else if (type.sign) {
+        elems[0] = LLVMConstInt(elem_type, (1LL << (type.width - 1)) - 1, 0);
+    } else {
+        LLVMTypeRef vec_type = build_vec_type(ctx, type);
+        LLVMValueRef vec = LLVMConstAllOnes(vec_type);
+        return vec;
+    }
+    for (unsigned i = 1; i < type.length; ++i)
+        elems[i] = elems[0];
+
+    if (type.length == 1)
+        return elems[0];
+    else
+        return LLVMConstVector(elems, type.length);
+}
+
+void
+rc_build_context_init(struct rc_build_context *bld, struct rc_llvm_context *ctx, struct rc_type type) {
+    bld->type = type;
+    bld->int_elem_type = LLVMIntTypeInContext(ctx->context, type.width);
+    if (type.floating)
+        bld->elem_type = build_elem_type(ctx, type);
+    else
+        bld->elem_type = bld->int_elem_type;
+
+    if (type.length == 1) {
+        bld->int_vec_type = bld->int_elem_type;
+        bld->vec_type = bld->elem_type;
+    } else {
+        bld->int_vec_type = LLVMVectorType(bld->int_elem_type, type.length);
+        bld->vec_type = LLVMVectorType(bld->elem_type, type.length);
+    }
+    bld->undef = LLVMGetUndef(bld->vec_type);
+    bld->zero = LLVMConstNull(bld->vec_type);
+    bld->one = build_one(ctx, type);
+}

@@ -1,6 +1,7 @@
 #include <llvm-c/Core.h>
 #include "nir/nir.h"
 #include "rc_nir_to_llvm.h"
+
 struct rc_nir_context {
     struct rc_llvm_context rc;
     LLVMValueRef *ssa_defs;
@@ -10,10 +11,25 @@ struct rc_nir_context {
     struct rc_llvm_pointer constant_data;
 
     struct hash_table *defs;
+    struct hash_table *regs;
+
+    struct rc_build_context base;
+    struct rc_build_context uint_bld;
+    struct rc_build_context int_bld;
+    struct rc_build_context uint8_bld;
+    struct rc_build_context int8_bld;
+    struct rc_build_context uint16_bld;
+    struct rc_build_context int16_bld;
+    struct rc_build_context half_bld;
+    struct rc_build_context dbl_bld;
+    struct rc_build_context uint64_bld;
+    struct rc_build_context int64_bld;
+
 };
 
 static bool visit_load_const(struct rc_nir_context *ctx, const nir_load_const_instr *instr) {
-    LLVMValueRef values[16], value = NULL;
+
+    LLVMValueRef values[NIR_MAX_VEC_COMPONENTS], value = NULL;
     LLVMTypeRef element_type = LLVMIntTypeInContext(ctx->rc.context, instr->def.bit_size);
 
     for (unsigned i = 0; i < instr->def.num_components; ++i) {
@@ -27,19 +43,74 @@ static bool visit_load_const(struct rc_nir_context *ctx, const nir_load_const_in
                 return false;
         }
     }
-    if (instr->def.num_components > 1) {
-        value = LLVMConstVector(values, instr->def.num_components);
-    } else
-        value = values[0];
 
-    ctx->ssa_defs[instr->def.index] = value;
+    assign_ssa_dest(ctx, &instr->def, values);
+
     return true;
 }
 
-static LLVMValueRef get_src(struct rc_nir_context *nir, nir_src src)
-{
-    assert(src.is_ssa);
-    return nir->ssa_defs[src.ssa->index];
+static LLVMValueRef
+rc_nir_array_build_gather_values(LLVMBuilderRef builder, LLVMValueRef *values, unsigned value_count) {
+    LLVMTypeRef arr_type = LLVMArrayType(LLVMTypeOf(values[0]), value_count);
+    LLVMValueRef arr = LLVMGetUndef(arr_type);
+    for (unsigned i = 0; i < value_count; i++) {
+        arr = LLVMBuildInsertValue(builder, arr, values[i], i, "");
+    }
+    return arr;
+}
+
+LLVMValueRef
+rc_build_const_int_vec(struct rc_llvm_context *rc, struct rc_type type, long long val) {
+    LLVMTypeRef elem_type = LLVMIntTypeInContext(rc->context, type.width);;
+    LLVMValueRef elems[MAX_VECTOR_LENGTH];
+
+    assert(type.length <= MAX_VECTOR_LENGTH);
+
+    for (unsigned i = 0; i < type.length; ++i)
+        elems[i] = LLVMConstInt(elem_type, val, type.sign ? 1 : 0);
+
+    if (type.length == 1)
+        return elems[0];
+
+    return LLVMConstVector(elems, type.length);
+}
+
+static inline struct rc_build_context *
+get_int_bld(struct rc_nir_context *ctx, bool is_unsigned, unsigned op_bit_size) {
+    if (is_unsigned) {
+        switch (op_bit_size) {
+            case 64:
+                return &ctx->uint64_bld;
+            case 32:
+            default:
+                return &ctx->uint_bld;
+            case 16:
+                return &ctx->uint16_bld;
+            case 8:
+                return &ctx->uint8_bld;
+        }
+    } else {
+        switch (op_bit_size) {
+            case 64:
+                return &ctx->int64_bld;
+            case 32:
+            default:
+                return &ctx->int_bld;
+            case 16:
+                return &ctx->uint16_bld;
+            case 8:
+                return &ctx->int8_bld;
+        }
+    }
+}
+
+static LLVMValueRef get_reg_src(struct rc_nir_context *ctx, nir_reg_src src);
+
+static LLVMValueRef get_src(struct rc_nir_context *nir, nir_src src) {
+    if (src.is_ssa)
+        return nir->ssa_defs[src.ssa->index];
+    else
+        return get_reg_src(nir, src.reg);
 }
 
 static bool visit_intrinsic(struct rc_nir_context *ctx, nir_intrinsic_instr *instr) {
@@ -54,15 +125,314 @@ static bool visit_intrinsic(struct rc_nir_context *ctx, nir_intrinsic_instr *ins
     }
 
     if (result) {
-      ctx->ssa_defs[instr->dest.ssa.index] = result;
-   }
-   return true;
+        ctx->ssa_defs[instr->dest.ssa.index] = result;
+    }
+    return true;
+}
+
+static LLVMValueRef
+get_alu_src(struct rc_nir_context *ctx, nir_alu_src src, unsigned num_components) {
+    assert(!src.negate);
+    assert(!src.abs);
+    assert(num_components >= 1);
+    assert(num_components <= 4);
+
+    const unsigned src_components = nir_src_num_components(src.src);
+    assert(src_components > 0);
+    LLVMValueRef value = get_src(ctx, src.src);
+#if 0
+    printf("[get_alu_src] get src %s from ssa_%d \n", LLVMPrintValueToString(value), src.src.ssa->index);
+#endif
+    assert(value);
+
+    bool need_swizzle = false;
+    for (unsigned i = 0; i < src_components; ++i) {
+        if (src.swizzle[i] != i) {
+            need_swizzle = true;
+            break;
+        }
+    }
+    if (need_swizzle) {
+        printf("alu src need to swizzle \n");
+    }
+    return value;
+}
+
+unsigned
+get_alu_src_components(const nir_alu_instr *instr) {
+    unsigned src_components = 0;
+
+    switch (instr->op) {
+        case nir_op_vec2:
+        case nir_op_vec3:
+        case nir_op_vec4:
+        case nir_op_vec8:
+        case nir_op_vec16:
+            src_components = 1;
+            break;
+        case nir_op_pack_half_2x16:
+            src_components = 2;
+            break;
+        case nir_op_unpack_half_2x16:
+            src_components = 1;
+            break;
+        case nir_op_cube_face_coord_amd:
+        case nir_op_cube_face_index_amd:
+            src_components = 3;
+            break;
+        case nir_op_fsum2:
+        case nir_op_fsum3:
+        case nir_op_fsum4:
+            src_components = nir_op_infos[instr->op].input_sizes[0];
+            break;
+        default:
+            src_components = nir_dest_num_components(instr->dest.dest);
+            break;
+    }
+    return src_components;
+}
+
+static LLVMValueRef
+do_alu_action(struct rc_nir_context *ctx, const nir_alu_instr *instr,
+              unsigned src_bit_size[NIR_MAX_VEC_COMPONENTS], LLVMValueRef src[NIR_MAX_VEC_COMPONENTS]) {
+    LLVMValueRef result;
+    switch (instr->op) {
+        case nir_op_mov:
+            result = src[0];
+            break;
+        default:
+            fprintf(stdout, "Unknown alu instr op: %d\n", instr->op);
+            fprintf(stdout, "\n");
+            assert(0);
+            break;
+    }
+    return result;
+}
+
+
+static LLVMValueRef
+cast_type(struct rc_nir_context *ctx, LLVMValueRef val,
+          nir_alu_type alu_type, unsigned bit_size) {
+    LLVMBuilderRef builder = ctx->rc.builder;
+    switch (alu_type) {
+        case nir_type_float:
+            switch (bit_size) {
+                case 16:
+                    return LLVMBuildBitCast(builder, val, ctx->half_bld.vec_type, "");
+                case 32:
+                    return LLVMBuildBitCast(builder, val, ctx->base.vec_type, "");
+                case 64:
+                    return LLVMBuildBitCast(builder, val, ctx->dbl_bld.vec_type, "");
+                default:
+                    assert(0);
+                    break;
+            }
+            break;
+        case nir_type_int:
+            switch (bit_size) {
+                case 8:
+                    return LLVMBuildBitCast(builder, val, ctx->int8_bld.vec_type, "");
+                case 16:
+                    return LLVMBuildBitCast(builder, val, ctx->int16_bld.vec_type, "");
+                case 32:
+                    return LLVMBuildBitCast(builder, val, ctx->int_bld.vec_type, "");
+                case 64:
+                    return LLVMBuildBitCast(builder, val, ctx->int64_bld.vec_type, "");
+                default:
+                    assert(0);
+                    break;
+            }
+            break;
+        case nir_type_uint:
+            switch (bit_size) {
+                case 8:
+                    return LLVMBuildBitCast(builder, val, ctx->uint8_bld.vec_type, "");
+                case 16:
+                    return LLVMBuildBitCast(builder, val, ctx->uint16_bld.vec_type, "");
+                case 1:
+                case 32:
+                    return LLVMBuildBitCast(builder, val, ctx->uint_bld.vec_type, "");
+                case 64:
+                    return LLVMBuildBitCast(builder, val, ctx->uint64_bld.vec_type, "");
+                default:
+                    assert(0);
+                    break;
+            }
+            break;
+        case nir_type_uint32:
+            return LLVMBuildBitCast(builder, val, ctx->uint_bld.vec_type, "");
+        default:
+            return val;
+    }
+    return NULL;
+}
+
+void assign_ssa_dest(struct rc_nir_context *ctx, const nir_ssa_def *ssa,
+                     LLVMValueRef vals[NIR_MAX_VEC_COMPONENTS]) {
+    if (ssa->num_components == 1) {
+        ctx->ssa_defs[ssa->index] = vals[0];
+    } else {
+#if 0
+        LLVMValueRef r = rc_nir_array_build_gather_values(ctx->rc.builder, vals,
+                                                            ssa->num_components);
+        printf("[assign_ssa_dest] write res = %s to ssa_%d \n", LLVMPrintValueToString(r), ssa->index);
+#endif
+        LLVMValueRef res = LLVMConstVector(vals, ssa->num_components);
+        ctx->ssa_defs[ssa->index] = res;
+    }
+}
+
+static LLVMValueRef build_array_get_ptr2(struct rc_llvm_context *rc, LLVMTypeRef array_type,
+                                         LLVMValueRef ptr, LLVMValueRef index) {
+    LLVMValueRef indices[2];
+    LLVMValueRef element_ptr;
+    assert(LLVMGetTypeKind(LLVMTypeOf(ptr)) == LLVMPointerTypeKind);
+    // assert(LLVM_VERSION_MAJOR >= 15 || LLVMGetTypeKind(LLVMGetElementType(LLVMTypeOf(ptr))) == LLVMArrayTypeKind);
+    indices[0] = LLVMConstInt(LLVMInt32TypeInContext(rc->context), 0, 0);
+    indices[1] = index;
+    element_ptr = LLVMBuildGEP2(rc->builder, array_type, ptr, indices, ARRAY_SIZE(indices), "");
+    return element_ptr;
+}
+
+static LLVMValueRef reg_chan_pointer(struct rc_nir_context *ctx,
+                                     struct rc_build_context *reg_bld,
+                                     const nir_register *reg,
+                                     LLVMValueRef reg_storage,
+                                     int array_index, int chan) {
+    int nc = reg->num_components;
+    LLVMTypeRef chan_type = reg_bld->vec_type;
+    if (nc > 1)
+        chan_type = LLVMArrayType(chan_type, nc);
+
+    if (reg->num_array_elems > 0) {
+        LLVMTypeRef array_type = LLVMArrayType(chan_type, reg->num_array_elems);
+        reg_storage = build_array_get_ptr2(&ctx->rc, array_type, reg_storage,
+                                           LLVMConstInt(LLVMInt32TypeInContext(ctx->rc.context), array_index, 0));
+    }
+    if (nc > 1) {
+        reg_storage = build_array_get_ptr2(&ctx->rc, chan_type, reg_storage,
+                                           LLVMConstInt(LLVMInt32TypeInContext(ctx->rc.context), chan, 0));
+    }
+    return reg_storage;
+}
+
+static LLVMValueRef load_reg(struct rc_nir_context *ctx, struct rc_build_context *reg_bld,
+                            const nir_reg_src *reg, LLVMValueRef indir_src, LLVMValueRef reg_storage) {
+    int nc = reg->reg->num_components;
+    LLVMValueRef vals[NIR_MAX_VEC_COMPONENTS] = {NULL};
+    if (reg->indirect) {
+        //TODO
+    } else {
+        for (unsigned i = 0; i < nc; i++) {
+            vals[i] = LLVMBuildLoad2(ctx->rc.builder, reg_bld->vec_type,
+                                     reg_chan_pointer(ctx, reg_bld, reg->reg, reg_storage,
+                                                      reg->base_offset, i), "");
+        }
+    }
+    return nc == 1 ? vals[0] : LLVMConstVector(vals, nc);
+    // return nc == 1 ? vals[0] : rc_nir_array_build_gather_values(ctx->rc.builder, vals, nc);
+}
+
+static LLVMValueRef get_reg_src(struct rc_nir_context *ctx, nir_reg_src src) {
+    struct hash_entry *entry = _mesa_hash_table_search(ctx->regs, src.reg);
+    LLVMValueRef reg_storage = (LLVMValueRef) entry->data;
+    struct rc_build_context *reg_bld = get_int_bld(ctx, true, src.reg->bit_size);
+    LLVMValueRef indir_src = NULL;
+    if (src.indirect) {
+        indir_src = get_src(ctx, *src.indirect);
+    }
+    return load_reg(ctx, reg_bld, &src, indir_src, reg_storage);
+}
+
+static void assign_reg(struct rc_nir_context *ctx, const nir_reg_dest *reg,
+                       unsigned write_mask, LLVMValueRef vals[NIR_MAX_VEC_COMPONENTS]) {
+    assert(write_mask != 0x0);
+    struct hash_entry *entry = _mesa_hash_table_search(ctx->regs, reg->reg);
+    LLVMValueRef reg_storage = (LLVMValueRef) entry->data;
+    auto reg_bld = get_int_bld(ctx, true, reg->reg->bit_size);
+    LLVMValueRef indir_src = NULL;
+    if (reg->indirect) {
+        indir_src = get_src(ctx, *reg->indirect);
+        //TODO: emit_store_reg finction in lp_bld_nir_soa.c
+    }
+
+    for (auto i = 0; i < reg->reg->num_components; i++) {
+        if (!(write_mask & (1 << i))) {
+            continue;
+        }
+        vals[i] = LLVMBuildBitCast(ctx->rc.builder, vals[i], reg_bld->vec_type, "");
+        auto dst_ptr = reg_chan_pointer(ctx, reg_bld, reg->reg, reg_storage,
+                                        reg->base_offset, i);
+#if 0
+        printf("[assign_reg] write res = %s to reg_%d, offset = %d\n",
+               LLVMPrintValueToString(vals[i]), reg->reg->index, reg->base_offset);
+#endif
+        LLVMBuildStore(ctx->rc.builder, vals[i], dst_ptr);
+    }
+}
+
+static void assign_alu_dest(struct rc_nir_context *ctx,
+                            const nir_alu_dest *dest,
+                            LLVMValueRef vals[NIR_MAX_VEC_COMPONENTS]) {
+    if (dest->dest.is_ssa) {
+        assign_ssa_dest(ctx, &dest->dest.ssa, vals);
+    } else {
+        assign_reg(ctx, &dest->dest.reg, dest->write_mask, vals);
+    }
+}
+
+static void
+visit_alu(struct rc_nir_context *ctx, const nir_alu_instr *instr) {
+    LLVMValueRef src[NIR_MAX_VEC_COMPONENTS];
+    unsigned src_bit_size[NIR_MAX_VEC_COMPONENTS];
+    const unsigned num_components = nir_dest_num_components(instr->dest.dest);
+    unsigned src_components = get_alu_src_components(instr);
+
+    for (unsigned i = 0; i < nir_op_infos[instr->op].num_inputs; i++) {
+        src[i] = get_alu_src(ctx, instr->src[i], src_components);
+        src_bit_size[i] = nir_src_bit_size(instr->src[i].src);
+    }
+
+    LLVMValueRef result[NIR_MAX_VEC_COMPONENTS];
+    if (instr->op == nir_op_vec4 ||
+        instr->op == nir_op_vec3 ||
+        instr->op == nir_op_vec2 ||
+        instr->op == nir_op_vec8 ||
+        instr->op == nir_op_vec16) {
+        //TODO: see lp_bld_nir.c visit_alu function
+
+    } else if (instr->op == nir_op_fsum4 ||
+               instr->op == nir_op_fsum3 ||
+               instr->op == nir_op_fsum2) {
+        //TODO: see lp_bld_nir.c visit_alu function
+    } else {
+        for (unsigned c = 0; c < num_components; c++) {
+            LLVMValueRef src_chan[NIR_MAX_VEC_COMPONENTS];
+
+            for (unsigned i = 0; i < nir_op_infos[instr->op].num_inputs; i++) {
+                if (num_components > 1) {
+                    src_chan[i] = LLVMBuildExtractValue(ctx->rc.builder, src[i], c, "");
+                } else {
+                    src_chan[i] = src[i];
+                }
+                src_chan[i] = cast_type(ctx, src_chan[i], nir_op_infos[instr->op].input_types[i], src_bit_size[i]);
+            }
+            result[c] = do_alu_action(ctx, instr, src_bit_size, src_chan);
+            result[c] = cast_type(ctx, result[c], nir_op_infos[instr->op].output_type,
+                                  nir_dest_bit_size(instr->dest.dest));
+        }
+    }
+    assign_alu_dest(ctx, &instr->dest, result);
 }
 
 static bool visit_block(struct rc_nir_context *ctx, nir_block *block) {
 
-    nir_foreach_instr (instr, block) {
-        switch(instr->type) {
+    nir_foreach_instr(instr, block)
+    {
+        switch (instr->type) {
+            case nir_instr_type_alu:
+                visit_alu(ctx, nir_instr_as_alu(instr));
+                break;
             case nir_instr_type_load_const:
                 if (!visit_load_const(ctx, nir_instr_as_load_const(instr)))
                     return false;
@@ -72,8 +442,8 @@ static bool visit_block(struct rc_nir_context *ctx, nir_block *block) {
                     return false;
                 break;
             case nir_instr_type_deref:
-                assert (!nir_deref_mode_is_one_of(nir_instr_as_deref(instr),
-                                                  nir_var_mem_shared | nir_var_mem_global));
+                assert(!nir_deref_mode_is_one_of(nir_instr_as_deref(instr),
+                                                 nir_var_mem_shared | nir_var_mem_global));
                 break;
             default:
                 fprintf(stdout, "Unknown NIR instr type: ");
@@ -87,8 +457,9 @@ static bool visit_block(struct rc_nir_context *ctx, nir_block *block) {
 }
 
 static bool visit_cf_list(struct rc_nir_context *ctx, struct exec_list *list) {
-    foreach_list_typed(nir_cf_node, node, node, list) {
-        switch(node->type) {
+    foreach_list_typed(nir_cf_node, node, node, list)
+    {
+        switch (node->type) {
             case nir_cf_node_block:
                 if (!visit_block(ctx, nir_cf_node_as_block(node))) {
                     return false;
@@ -101,24 +472,64 @@ static bool visit_cf_list(struct rc_nir_context *ctx, struct exec_list *list) {
     return false;
 }
 
-static LLVMBasicBlockRef get_block(struct rc_nir_context *nir, const struct nir_block *b)
-{
-    struct hash_entry *entry = _mesa_hash_table_search(nir->defs, b);
-    return (LLVMBasicBlockRef)entry->data;
+static struct rc_type rc_uint_type(struct rc_type type) {
+    struct rc_type res_type;
+    memset(&res_type, 0, sizeof res_type);
+    res_type.width = type.width;
+    res_type.length = type.length;
+
+    return res_type;
 }
 
-static void visit_post_phi(struct rc_nir_context *ctx, nir_phi_instr *instr, LLVMValueRef llvm_phi)
-{
-    nir_foreach_phi_src (src, instr) {
-        LLVMBasicBlockRef block = get_block(ctx, src->pred);
-        LLVMValueRef llvm_src = get_src(ctx, src->src);
+static struct rc_type rc_int_type(struct rc_type type) {
+    struct rc_type res_type;
+    memset(&res_type, 0, sizeof res_type);
+    res_type.width = type.width;
+    res_type.length = type.length;
+    res_type.sign = 1;
 
-        LLVMAddIncoming(llvm_phi, &llvm_src, &block, 1);
+    return res_type;
+}
+
+static LLVMTypeRef get_register_type(struct rc_nir_context *ctx, nir_register *reg) {
+    struct rc_build_context *int_bld = get_int_bld(ctx, true, reg->bit_size == 1 ? 32 : reg->bit_size);
+    LLVMTypeRef type = int_bld->vec_type;
+    if (reg->num_components > 1)
+        type = LLVMArrayType(type, reg->num_components);
+    if (reg->num_array_elems)
+        type = LLVMArrayType(type, reg->num_array_elems);
+
+    return type;
+}
+
+static LLVMBuilderRef create_builder_at_entry(struct rc_llvm_context *rc) {
+    LLVMBasicBlockRef current_block = LLVMGetInsertBlock(rc->builder);
+    LLVMValueRef function = LLVMGetBasicBlockParent(current_block);
+    LLVMBasicBlockRef first_block = LLVMGetEntryBasicBlock(function);
+    LLVMValueRef first_instr = LLVMGetFirstInstruction(first_block);
+    LLVMBuilderRef first_builder = LLVMCreateBuilderInContext(rc->context);
+
+    if (first_instr) {
+        LLVMPositionBuilderBefore(first_builder, first_instr);
+    } else {
+        LLVMPositionBuilderAtEnd(first_builder, first_block);
     }
+
+    return first_builder;
+}
+
+static LLVMValueRef build_alloca(struct rc_llvm_context *rc, LLVMTypeRef type, const char *name) {
+    LLVMBuilderRef first_builder = create_builder_at_entry(rc);
+    LLVMValueRef res = LLVMBuildAlloca(first_builder, type, name);
+    LLVMBuildStore(rc->builder, LLVMConstNull(type), res);
+    LLVMDisposeBuilder(first_builder);
+
+    return res;
 }
 
 bool rc_nir_translate(struct rc_llvm_context *rc, struct nir_shader *nir) {
-    struct rc_nir_context ctx= {0};
+    struct rc_nir_context ctx;
+    memset(&ctx, 0, sizeof ctx);
     struct nir_function *func;
 
     nir_convert_from_ssa(nir, true);
@@ -126,20 +537,45 @@ bool rc_nir_translate(struct rc_llvm_context *rc, struct nir_shader *nir) {
     nir_remove_dead_derefs(nir);
     nir_remove_dead_variables(nir, nir_var_function_temp, NULL);
 
+    nir_print_shader(nir, stdout);
+
+    if (ctx.stage == MESA_SHADER_VERTEX) {
+        struct rc_type vs_type;
+        memset(&vs_type, 0, sizeof vs_type);
+        vs_type.floating = TRUE;
+        vs_type.sign = TRUE;
+        vs_type.norm = FALSE;
+        vs_type.width = 32;
+        vs_type.length = 1;
+
+        rc_build_context_init(&ctx.base, rc, vs_type);
+        rc_build_context_init(&ctx.uint_bld, rc, rc_uint_type(vs_type));
+        rc_build_context_init(&ctx.int_bld, rc, rc_int_type(vs_type));
+    }
+
     ctx.rc = *rc;
     ctx.stage = nir->info.stage;
 
-    func = (struct nir_function *)exec_list_get_head(&nir->functions);
+    func = (struct nir_function *) exec_list_get_head(&nir->functions);
     nir_index_ssa_defs(func->impl);
 
     ctx.defs = _mesa_hash_table_create(NULL, _mesa_hash_pointer, _mesa_key_pointer_equal);
-    ctx.ssa_defs = (LLVMValueRef *)calloc(func->impl->ssa_alloc, sizeof(LLVMValueRef));
+    ctx.ssa_defs = (LLVMValueRef *) calloc(func->impl->ssa_alloc, sizeof(LLVMValueRef));
+
+    ctx.regs = _mesa_hash_table_create(NULL, _mesa_hash_pointer, _mesa_key_pointer_equal);
+    nir_foreach_register(reg, &func->impl->registers)
+    {
+        LLVMTypeRef type = get_register_type(&ctx, reg);
+        LLVMValueRef reg_alloc = build_alloca(&ctx.rc, type, "reg");
+        _mesa_hash_table_insert(ctx.regs, reg, reg_alloc);
+    }
 
     if (!visit_cf_list(&ctx, &func->impl->body))
         return false;
 
     free(ctx.ssa_defs);
     ralloc_free(ctx.defs);
+    ralloc_free(ctx.regs);
 
     return true;
 }

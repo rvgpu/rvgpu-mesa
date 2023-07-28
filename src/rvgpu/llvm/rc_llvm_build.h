@@ -32,6 +32,8 @@
 extern "C" {
 #endif
 
+#define MAX_VECTOR_LENGTH 1
+
 struct rc_llvm_pointer {
    union {
       LLVMValueRef value;
@@ -56,10 +58,33 @@ struct rc_llvm_context {
 
    struct rc_llvm_pointer main_function;
 };
+struct rc_type {
+    unsigned floating:1;
+    unsigned fixed:1;
+    unsigned sign:1;
+    unsigned norm:1;
+    unsigned width:14;
+    unsigned length:14;
+};
+
+
+struct rc_build_context {
+    struct rc_llvm_context *rc;
+    struct rc_type type;
+    LLVMTypeRef elem_type;
+    LLVMTypeRef vec_type;
+    LLVMTypeRef int_elem_type;
+    LLVMTypeRef int_vec_type;
+    LLVMValueRef undef;
+    LLVMValueRef zero;
+    LLVMValueRef one;
+};
 
 void rc_llvm_context_init(struct rc_llvm_context *ctx, struct rc_llvm_compiler *compiler);
 
 struct rc_llvm_pointer rc_build_main(struct rc_llvm_context *ctx);
+
+void rc_build_context_init(struct rc_build_context *bld, struct rc_llvm_context *ctx, struct rc_type type);
 
 #ifdef __cplusplus
 }

@@ -38,6 +38,9 @@ extern "C" {
 struct nir_shader;
 bool rc_nir_translate(struct rc_llvm_context *rc, struct nir_shader *nir);
 
+void assign_ssa_dest(struct rc_nir_context *ctx, const nir_ssa_def *dest,
+        LLVMValueRef vals[NIR_MAX_VEC_COMPONENTS]);
+
 #ifdef __cplusplus
 }
 #endif

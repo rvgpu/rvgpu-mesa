@@ -1266,6 +1266,7 @@ visit_alu(struct lp_build_nir_context *bld_base,
             if (num_components > 1) {
                src_chan[i] = LLVMBuildExtractValue(gallivm->builder,
                                                      src[i], c, "");
+                printf("src_chain[%d] = %s \n", i, LLVMPrintValueToString(src_chan[i]));
             } else {
                src_chan[i] = src[i];
             }
@@ -1289,6 +1290,14 @@ visit_load_const(struct lp_build_nir_context *bld_base,
 {
    LLVMValueRef result[NIR_MAX_VEC_COMPONENTS];
    bld_base->load_const(bld_base, instr, result);
+#if 0
+    printf("[visit_load_const] loaded data_0 = %s, data_1 = %s, data_2 = %s, data_3 = %s,write to ssa_%d\n",
+           LLVMPrintValueToString(result[0]),
+           LLVMPrintValueToString(result[1]),
+           LLVMPrintValueToString(result[2]),
+           LLVMPrintValueToString(result[3]),
+           instr->def.index);
+#endif
    assign_ssa_dest(bld_base, &instr->def, result);
 }
 
@@ -2724,6 +2733,8 @@ get_register_type(struct lp_build_nir_context *bld_base,
 bool lp_build_nir_llvm(struct lp_build_nir_context *bld_base,
                        struct nir_shader *nir)
 {
+    printf("[lp_build_nir_llvm] xxxxxxxxxxxxxxxxxxx \n");
+    nir_print_shader(nir, stdout);
    struct nir_function *func;
 
    nir_convert_from_ssa(nir, true);
