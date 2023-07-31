@@ -2,8 +2,13 @@
 #include "nir/nir.h"
 #include "rc_nir_to_llvm.h"
 
+struct rc_shader_abi {
+    LLVMValueRef vertex_id;
+};
+
 struct rc_nir_context {
     struct rc_llvm_context rc;
+    struct rc_shader_abi abi;
     LLVMValueRef *ssa_defs;
 
     gl_shader_stage stage;
@@ -59,22 +64,6 @@ rc_nir_array_build_gather_values(LLVMBuilderRef builder, LLVMValueRef *values, u
     return arr;
 }
 
-LLVMValueRef
-rc_build_const_int_vec(struct rc_llvm_context *rc, struct rc_type type, long long val) {
-    LLVMTypeRef elem_type = LLVMIntTypeInContext(rc->context, type.width);;
-    LLVMValueRef elems[MAX_VECTOR_LENGTH];
-
-    assert(type.length <= MAX_VECTOR_LENGTH);
-
-    for (unsigned i = 0; i < type.length; ++i)
-        elems[i] = LLVMConstInt(elem_type, val, type.sign ? 1 : 0);
-
-    if (type.length == 1)
-        return elems[0];
-
-    return LLVMConstVector(elems, type.length);
-}
-
 static inline struct rc_build_context *
 get_int_bld(struct rc_nir_context *ctx, bool is_unsigned, unsigned op_bit_size) {
     if (is_unsigned) {
@@ -113,10 +102,24 @@ static LLVMValueRef get_src(struct rc_nir_context *nir, nir_src src) {
         return get_reg_src(nir, src.reg);
 }
 
+static void assign_reg(struct rc_nir_context *ctx, const nir_reg_dest *reg,
+                       unsigned write_mask, LLVMValueRef vals[NIR_MAX_VEC_COMPONENTS]);
+
+static void assign_dest(struct rc_nir_context *ctx, const nir_dest *dest, LLVMValueRef vals[NIR_MAX_VEC_COMPONENTS]) {
+    if (dest->is_ssa)
+        assign_ssa_dest(ctx, &dest->ssa, vals);
+    else
+        assign_reg(ctx, &dest->reg, WRITE_MASK, vals);
+}
+
 static bool visit_intrinsic(struct rc_nir_context *ctx, nir_intrinsic_instr *instr) {
-    LLVMValueRef result = NULL;
+    LLVMValueRef result[NIR_MAX_VEC_COMPONENTS] = {0};
 
     switch (instr->intrinsic) {
+        case nir_intrinsic_load_vertex_id:
+            printf("nir: load vertex id \n");
+            result[0] = ctx->abi.vertex_id;
+            break;
         default:
             fprintf(stdout, "Unknown intrinsic: ");
             nir_print_instr(&instr->instr, stdout);
@@ -124,8 +127,13 @@ static bool visit_intrinsic(struct rc_nir_context *ctx, nir_intrinsic_instr *ins
             return true;
     }
 
+    /*
     if (result) {
         ctx->ssa_defs[instr->dest.ssa.index] = result;
+    }
+     */
+    if (result[0]) {
+        assign_dest(ctx, &instr->dest, result);
     }
     return true;
 }
@@ -192,13 +200,41 @@ get_alu_src_components(const nir_alu_instr *instr) {
     return src_components;
 }
 
+static LLVMValueRef build_add(struct rc_build_context *bld,
+                                LLVMValueRef a, LLVMValueRef b) {
+    LLVMValueRef res;
+
+    if (a == bld->zero)
+        return b;
+    if (b == bld->zero)
+        return a;
+    if ((a == bld->undef) || (b == bld->undef))
+        return bld->undef;
+
+    if (bld->type.norm) {
+        printf("TODO: alu iadd norm type \n");
+    }
+
+    if (bld->type.floating)
+        res = LLVMBuildFAdd(bld->rc->builder, a, b, "");
+    else
+        res = LLVMBuildAdd(bld->rc->builder, a, b, "");
+
+    return res;
+}
+
 static LLVMValueRef
 do_alu_action(struct rc_nir_context *ctx, const nir_alu_instr *instr,
               unsigned src_bit_size[NIR_MAX_VEC_COMPONENTS], LLVMValueRef src[NIR_MAX_VEC_COMPONENTS]) {
     LLVMValueRef result;
     switch (instr->op) {
         case nir_op_mov:
+            printf("nir: nir_op_mov \n");
             result = src[0];
+            break;
+        case nir_op_iadd:
+            printf("nir: nir_op_iadd \n");
+            result = build_add(get_int_bld(ctx, false, src_bit_size[0]), src[0], src[1]);
             break;
         default:
             fprintf(stdout, "Unknown alu instr op: %d\n", instr->op);
@@ -271,8 +307,11 @@ void assign_ssa_dest(struct rc_nir_context *ctx, const nir_ssa_def *ssa,
                      LLVMValueRef vals[NIR_MAX_VEC_COMPONENTS]) {
     if (ssa->num_components == 1) {
         ctx->ssa_defs[ssa->index] = vals[0];
+#if 1
+        printf("[assign_ssa_dest] write res = %s to ssa_%d \n", LLVMPrintValueToString(vals[0]), ssa->index);
+#endif
     } else {
-#if 0
+#if 1
         LLVMValueRef r = rc_nir_array_build_gather_values(ctx->rc.builder, vals,
                                                             ssa->num_components);
         printf("[assign_ssa_dest] write res = %s to ssa_%d \n", LLVMPrintValueToString(r), ssa->index);
@@ -322,6 +361,7 @@ static LLVMValueRef load_reg(struct rc_nir_context *ctx, struct rc_build_context
     LLVMValueRef vals[NIR_MAX_VEC_COMPONENTS] = {NULL};
     if (reg->indirect) {
         //TODO
+        printf("TODO: load reg indirect \n");
     } else {
         for (unsigned i = 0; i < nc; i++) {
             vals[i] = LLVMBuildLoad2(ctx->rc.builder, reg_bld->vec_type,
@@ -363,7 +403,7 @@ static void assign_reg(struct rc_nir_context *ctx, const nir_reg_dest *reg,
         vals[i] = LLVMBuildBitCast(ctx->rc.builder, vals[i], reg_bld->vec_type, "");
         auto dst_ptr = reg_chan_pointer(ctx, reg_bld, reg->reg, reg_storage,
                                         reg->base_offset, i);
-#if 0
+#if 1
         printf("[assign_reg] write res = %s to reg_%d, offset = %d\n",
                LLVMPrintValueToString(vals[i]), reg->reg->index, reg->base_offset);
 #endif
@@ -434,6 +474,7 @@ static bool visit_block(struct rc_nir_context *ctx, nir_block *block) {
                 visit_alu(ctx, nir_instr_as_alu(instr));
                 break;
             case nir_instr_type_load_const:
+                printf("nir: load const \n");
                 if (!visit_load_const(ctx, nir_instr_as_load_const(instr)))
                     return false;
                 break;
@@ -540,6 +581,9 @@ bool rc_nir_translate(struct rc_llvm_context *rc, struct nir_shader *nir) {
     nir_print_shader(nir, stdout);
 
     if (ctx.stage == MESA_SHADER_VERTEX) {
+        ctx.abi.vertex_id = LLVMGetParam(rc->main_function.value, 1);
+        LLVMSetValueName(ctx.abi.vertex_id, "vertex_id");
+
         struct rc_type vs_type;
         memset(&vs_type, 0, sizeof vs_type);
         vs_type.floating = TRUE;

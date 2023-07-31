@@ -33,6 +33,7 @@ extern "C" {
 #endif
 
 #define MAX_VECTOR_LENGTH 1
+#define WRITE_MASK 1
 
 struct rc_llvm_pointer {
    union {
