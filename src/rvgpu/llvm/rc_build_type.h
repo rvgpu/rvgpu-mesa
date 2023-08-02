@@ -24,50 +24,44 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+#ifndef RVGPU_MESA_RC_BUILD_TYPE_H
+#define RVGPU_MESA_RC_BUILD_TYPE_H
 
-#ifndef RC_LLVM_BUILD_H__
-#define RC_LLVM_BUILD_H__
+#include <llvm-c/Types.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+struct rc_llvm_context;
 
-#define MAX_VECTOR_LENGTH 1
-#define WRITE_MASK 0x1
-
-struct rc_llvm_pointer {
-   union {
-      LLVMValueRef value;
-      LLVMValueRef v;
-   };
-   /* Doesn't support complex types (pointer to pointer to etc...),
-    * but this isn't a problem since there's no place where this
-    * would be required.
-    */
-   union {
-      LLVMTypeRef pointee_type;
-      LLVMTypeRef t;
-   };
-}; 
-
-struct rc_llvm_context {
-   LLVMContextRef context;
-   LLVMModuleRef module;
-   LLVMBuilderRef builder;
-
-   LLVMTypeRef voidt;
-
-   struct rc_llvm_pointer main_function;
+struct rc_type {
+    unsigned floating:1;
+    unsigned fixed:1;
+    unsigned sign:1;
+    unsigned norm:1;
+    unsigned width:14;
+    unsigned length:14;
 };
 
-void rc_llvm_context_init(struct rc_llvm_context *ctx, struct rc_llvm_compiler *compiler);
+struct rc_build_context {
+    struct rc_llvm_context *rc;
+    struct rc_type type;
+    LLVMTypeRef elem_type;
+    LLVMTypeRef vec_type;
+    LLVMTypeRef int_elem_type;
+    LLVMTypeRef int_vec_type;
+    LLVMValueRef undef;
+    LLVMValueRef zero;
+    LLVMValueRef one;
+};
 
-struct rc_llvm_pointer rc_build_main(struct rc_llvm_context *ctx);
+LLVMTypeRef rc_build_int_vec_type(struct rc_llvm_context *rc, struct rc_type type);
+LLVMTypeRef rc_build_vec_type(struct rc_llvm_context *rc, struct rc_type type);
+LLVMTypeRef rc_build_elem_type(struct rc_llvm_context *ctx, struct rc_type type);
 
-void rc_build_context_init(struct rc_build_context *bld, struct rc_llvm_context *ctx, struct rc_type type);
-
+LLVMValueRef rc_build_const_int_vec(struct rc_llvm_context *rc, struct rc_type type, long long val);
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif //RVGPU_MESA_RC_BUILD_TYPE_H

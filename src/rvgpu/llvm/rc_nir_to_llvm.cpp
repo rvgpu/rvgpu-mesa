@@ -1,6 +1,8 @@
 #include <llvm-c/Core.h>
 #include "nir/nir.h"
 #include "rc_nir_to_llvm.h"
+#include "rc_build_type.h"
+#include "rc_llvm_build_arit.h"
 
 struct rc_shader_abi {
     LLVMValueRef vertex_id;
@@ -34,7 +36,7 @@ struct rc_nir_context {
 
 static bool visit_load_const(struct rc_nir_context *ctx, const nir_load_const_instr *instr) {
 
-    LLVMValueRef values[NIR_MAX_VEC_COMPONENTS], value = NULL;
+    LLVMValueRef values[NIR_MAX_VEC_COMPONENTS];
     LLVMTypeRef element_type = LLVMIntTypeInContext(ctx->rc.context, instr->def.bit_size);
 
     for (unsigned i = 0; i < instr->def.num_components; ++i) {
@@ -127,11 +129,6 @@ static bool visit_intrinsic(struct rc_nir_context *ctx, nir_intrinsic_instr *ins
             return true;
     }
 
-    /*
-    if (result) {
-        ctx->ssa_defs[instr->dest.ssa.index] = result;
-    }
-     */
     if (result[0]) {
         assign_dest(ctx, &instr->dest, result);
     }
@@ -200,41 +197,18 @@ get_alu_src_components(const nir_alu_instr *instr) {
     return src_components;
 }
 
-static LLVMValueRef build_add(struct rc_build_context *bld,
-                                LLVMValueRef a, LLVMValueRef b) {
-    LLVMValueRef res;
-
-    if (a == bld->zero)
-        return b;
-    if (b == bld->zero)
-        return a;
-    if ((a == bld->undef) || (b == bld->undef))
-        return bld->undef;
-
-    if (bld->type.norm) {
-        printf("TODO: alu iadd norm type \n");
-    }
-
-    if (bld->type.floating)
-        res = LLVMBuildFAdd(bld->rc->builder, a, b, "");
-    else
-        res = LLVMBuildAdd(bld->rc->builder, a, b, "");
-
-    return res;
-}
-
 static LLVMValueRef
 do_alu_action(struct rc_nir_context *ctx, const nir_alu_instr *instr,
               unsigned src_bit_size[NIR_MAX_VEC_COMPONENTS], LLVMValueRef src[NIR_MAX_VEC_COMPONENTS]) {
     LLVMValueRef result;
     switch (instr->op) {
         case nir_op_mov:
-            printf("nir: nir_op_mov \n");
+            printf("mov op \n");
             result = src[0];
             break;
         case nir_op_iadd:
-            printf("nir: nir_op_iadd \n");
-            result = build_add(get_int_bld(ctx, false, src_bit_size[0]), src[0], src[1]);
+            printf("iadd op \n");
+            result = rc_build_add(get_int_bld(ctx, false, src_bit_size[0]), src[0], src[1]);
             break;
         default:
             fprintf(stdout, "Unknown alu instr op: %d\n", instr->op);
@@ -307,16 +281,16 @@ void assign_ssa_dest(struct rc_nir_context *ctx, const nir_ssa_def *ssa,
                      LLVMValueRef vals[NIR_MAX_VEC_COMPONENTS]) {
     if (ssa->num_components == 1) {
         ctx->ssa_defs[ssa->index] = vals[0];
-#if 1
+#if 0
         printf("[assign_ssa_dest] write res = %s to ssa_%d \n", LLVMPrintValueToString(vals[0]), ssa->index);
 #endif
     } else {
-#if 1
-        LLVMValueRef r = rc_nir_array_build_gather_values(ctx->rc.builder, vals,
+
+        LLVMValueRef res = rc_nir_array_build_gather_values(ctx->rc.builder, vals,
                                                             ssa->num_components);
-        printf("[assign_ssa_dest] write res = %s to ssa_%d \n", LLVMPrintValueToString(r), ssa->index);
+#if 0
+        printf("[assign_ssa_dest] write res = %s to ssa_%d \n", LLVMPrintValueToString(res), ssa->index);
 #endif
-        LLVMValueRef res = LLVMConstVector(vals, ssa->num_components);
         ctx->ssa_defs[ssa->index] = res;
     }
 }
@@ -355,22 +329,118 @@ static LLVMValueRef reg_chan_pointer(struct rc_nir_context *ctx,
     return reg_storage;
 }
 
+static LLVMValueRef
+get_soa_array_offsets(struct rc_build_context *uint_bld, LLVMValueRef indirect_index,
+                        int num_components, unsigned chan_index, bool need_perelement_offset) {
+    LLVMValueRef chan_vec = rc_build_const_int_vec(uint_bld->rc, uint_bld->type, chan_index);
+    LLVMValueRef length_vec = rc_build_const_int_vec(uint_bld->rc, uint_bld->type, uint_bld->type.length);
+    LLVMValueRef index_vec;
+
+    /* index_vec = (indirect_index * num_components + chan_index) * length + offsets */
+    index_vec = rc_build_mul(uint_bld, indirect_index, rc_build_const_int_vec(uint_bld->rc, uint_bld->type, num_components));
+    index_vec = rc_build_add(uint_bld, index_vec, chan_vec);
+    index_vec = rc_build_mul(uint_bld, index_vec, length_vec);
+
+    if (need_perelement_offset) {
+        LLVMValueRef pixel_offsets = uint_bld->undef;
+
+        for (auto i = 0; i < uint_bld->type.length; i++) {
+            LLVMValueRef ii = LLVMConstInt(LLVMInt32TypeInContext(uint_bld->rc->context), i, 0);
+            pixel_offsets = LLVMBuildInsertElement(uint_bld->rc->builder, pixel_offsets, ii, ii, "");
+        }
+        index_vec = rc_build_add(uint_bld, index_vec, pixel_offsets);
+    }
+
+    return index_vec;
+}
+
+static LLVMValueRef build_gather(struct rc_nir_context *ctx, struct rc_build_context *bld,
+                                 LLVMTypeRef base_type, LLVMValueRef base_ptr,
+                                 LLVMValueRef indexes, LLVMValueRef overflow_mask, LLVMValueRef indexes2) {
+
+    LLVMValueRef res;
+#if 0
+    if (indexes2)
+        res = LLVMGetUndef(LLVMVectorType(LLVMFloatTypeInContext(ctx->rc.context), ctx->base.type.length * 2));
+    else
+        res = bld->undef;
+
+    if (overflow_mask) {
+        indexes = rc_build_select(&ctx->uint_bld, overflow_mask, ctx->uint_bld.zero, indexes);
+        if (indexes2)
+            indexes2 = rc_build_select(&ctx->uint_bld, overflow_mask, ctx->uint_bld.zero, indexes2);
+    }
+
+    printf("bld->type.length = %d \n", bld->type.length);
+    for (auto i = 0; i < bld->type.length * (indexes2 ? 2 : 1); i++) {
+        LLVMValueRef si, di;
+        LLVMValueRef index;
+        LLVMValueRef scalar_ptr, scalar;
+
+        di = LLVMConstInt(LLVMInt32TypeInContext(ctx->rc.context), i, 0);
+        if (indexes2)
+            si = LLVMConstInt(LLVMInt32TypeInContext(ctx->rc.context), i >> 1, 0);
+        else
+            si = di;
+
+        printf("[build_gather] di = %s , indexes = %s\n", LLVMPrintValueToString(di), LLVMPrintValueToString(indexes));
+        if (indexes2 && (i & 1)) {
+            index = LLVMBuildExtractElement(ctx->rc.builder, indexes2, si, "");
+        } else {
+            index = LLVMBuildExtractElement(ctx->rc.builder, indexes, si, "");
+        }
+
+        scalar_ptr = LLVMBuildGEP2(ctx->rc.builder, base_type, base_ptr, &index, 1, "gather_ptr");
+        scalar = LLVMBuildLoad2(ctx->rc.builder, base_type, scalar_ptr, "");
+
+        res = LLVMBuildInsertElement(ctx->rc.builder, res, scalar, di, "");
+    }
+
+    if (overflow_mask) {
+        if (indexes2) {
+            res = LLVMBuildBitCast(ctx->rc.builder, res, ctx->dbl_bld.vec_type, "");
+            overflow_mask = LLVMBuildSExt(ctx->rc.builder, overflow_mask,
+                                          ctx->dbl_bld.int_vec_type, "");
+            res = rc_build_select(&ctx->dbl_bld, overflow_mask, ctx->dbl_bld.zero, res);
+        } else {
+            res = rc_build_select(bld, overflow_mask, bld->zero, res);
+        }
+    }
+#endif
+    LLVMValueRef scalar_ptr;
+    scalar_ptr = LLVMBuildGEP2(ctx->rc.builder, base_type, base_ptr, &indexes, 1, "gather_ptr");
+    res = LLVMBuildLoad2(ctx->rc.builder, base_type, scalar_ptr, "");
+    return res;
+}
+
 static LLVMValueRef load_reg(struct rc_nir_context *ctx, struct rc_build_context *reg_bld,
                             const nir_reg_src *reg, LLVMValueRef indir_src, LLVMValueRef reg_storage) {
     int nc = reg->reg->num_components;
     LLVMValueRef vals[NIR_MAX_VEC_COMPONENTS] = {NULL};
     if (reg->indirect) {
-        //TODO
-        printf("TODO: load reg indirect \n");
+        LLVMValueRef indirect_val = rc_build_const_int_vec(&ctx->rc, ctx->uint_bld.type, reg->base_offset);
+        LLVMValueRef max_index = rc_build_const_int_vec(&ctx->rc, ctx->uint_bld.type, reg->reg->num_array_elems - 1);
+        indirect_val = LLVMBuildAdd(ctx->rc.builder, indirect_val, indir_src, "");
+
+        indirect_val = rc_build_min(&ctx->uint_bld, indirect_val, max_index);
+        reg_storage = LLVMBuildBitCast(ctx->rc.builder, reg_storage, LLVMPointerType(reg_bld->elem_type, 0), "");
+
+        for (auto i = 0; i < nc; i++) {
+            LLVMValueRef indirect_offset = get_soa_array_offsets(&ctx->uint_bld, indirect_val, nc, i, false);
+            //vals[i] = build_gather(ctx, reg_bld, reg_bld->elem_type,reg_storage, indirect_offset, NULL, NULL);
+
+            vals[i] = LLVMBuildLoad2(ctx->rc.builder, reg_bld->vec_type,
+                                     reg_chan_pointer(ctx, reg_bld, reg->reg, reg_storage,
+                                                      i, i), "");
+        }
     } else {
-        for (unsigned i = 0; i < nc; i++) {
+        for (auto i = 0; i < nc; i++) {
             vals[i] = LLVMBuildLoad2(ctx->rc.builder, reg_bld->vec_type,
                                      reg_chan_pointer(ctx, reg_bld, reg->reg, reg_storage,
                                                       reg->base_offset, i), "");
         }
     }
-    return nc == 1 ? vals[0] : LLVMConstVector(vals, nc);
-    // return nc == 1 ? vals[0] : rc_nir_array_build_gather_values(ctx->rc.builder, vals, nc);
+     return nc == 1 ? vals[0] : rc_nir_array_build_gather_values(ctx->rc.builder, vals, nc);
 }
 
 static LLVMValueRef get_reg_src(struct rc_nir_context *ctx, nir_reg_src src) {
@@ -394,16 +464,17 @@ static void assign_reg(struct rc_nir_context *ctx, const nir_reg_dest *reg,
     if (reg->indirect) {
         indir_src = get_src(ctx, *reg->indirect);
         //TODO: emit_store_reg finction in lp_bld_nir_soa.c
+        printf("TODO: store indirect reg \n");
     }
 
-    for (auto i = 0; i < reg->reg->num_components; i++) {
+    for (unsigned int i = 0; i < reg->reg->num_components; i++) {
         if (!(write_mask & (1 << i))) {
             continue;
         }
         vals[i] = LLVMBuildBitCast(ctx->rc.builder, vals[i], reg_bld->vec_type, "");
         auto dst_ptr = reg_chan_pointer(ctx, reg_bld, reg->reg, reg_storage,
                                         reg->base_offset, i);
-#if 1
+#if 0
         printf("[assign_reg] write res = %s to reg_%d, offset = %d\n",
                LLVMPrintValueToString(vals[i]), reg->reg->index, reg->base_offset);
 #endif
@@ -462,6 +533,7 @@ visit_alu(struct rc_nir_context *ctx, const nir_alu_instr *instr) {
                                   nir_dest_bit_size(instr->dest.dest));
         }
     }
+
     assign_alu_dest(ctx, &instr->dest, result);
 }
 
@@ -471,6 +543,7 @@ static bool visit_block(struct rc_nir_context *ctx, nir_block *block) {
     {
         switch (instr->type) {
             case nir_instr_type_alu:
+                printf("nir: alu \n");
                 visit_alu(ctx, nir_instr_as_alu(instr));
                 break;
             case nir_instr_type_load_const:
@@ -590,7 +663,7 @@ bool rc_nir_translate(struct rc_llvm_context *rc, struct nir_shader *nir) {
         vs_type.sign = TRUE;
         vs_type.norm = FALSE;
         vs_type.width = 32;
-        vs_type.length = 1;
+        vs_type.length = MAX_VECTOR_LENGTH;
 
         rc_build_context_init(&ctx.base, rc, vs_type);
         rc_build_context_init(&ctx.uint_bld, rc, rc_uint_type(vs_type));

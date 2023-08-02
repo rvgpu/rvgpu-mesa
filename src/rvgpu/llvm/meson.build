@@ -22,6 +22,8 @@ rvgpu_common_llvm_files = files(
   'rc_llvm_util.cpp',
   'rc_llvm_build.cpp',
   'rc_nir_to_llvm.cpp',
+  'rc_llvm_build_arit.cpp',
+  'rc_build_type.cpp',
 )
 
 librvgpu_common_llvm = static_library(

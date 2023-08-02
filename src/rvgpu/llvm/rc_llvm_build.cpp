@@ -36,6 +36,7 @@
 
 #include "rc_llvm_build.h"
 #include "rc_llvm_util.h"
+#include "rc_build_type.h"
 
 void rc_disassemble(char *bytes, uint32_t bufsize) {
     printf("RISC-V Binary:\n");
@@ -117,28 +118,8 @@ void rc_llvm_context_init(struct rc_llvm_context *ctx, struct rc_llvm_compiler *
 }
 
 static LLVMTypeRef
-build_elem_type(struct rc_llvm_context *ctx, struct rc_type type) {
-    if (type.floating) {
-        switch (type.width) {
-            case 16:
-                return LLVMHalfTypeInContext(ctx->context);
-            case 32:
-                return LLVMFloatTypeInContext(ctx->context);
-            case 64:
-                return LLVMDoubleTypeInContext(ctx->context);
-            default:
-                assert(0);
-                return LLVMFloatTypeInContext(ctx->context);
-        }
-    }
-    else {
-        return LLVMIntTypeInContext(ctx->context, type.width);
-    }
-}
-
-static LLVMTypeRef
 build_vec_type(struct rc_llvm_context *ctx, struct rc_type type) {
-    LLVMTypeRef elem_type = build_elem_type(ctx, type);
+    LLVMTypeRef elem_type = rc_build_elem_type(ctx, type);
     if (type.length == 1)
         return elem_type;
     else
@@ -150,7 +131,7 @@ build_one(struct rc_llvm_context *ctx, struct rc_type type) {
     LLVMTypeRef elem_type;
     LLVMValueRef elems[MAX_VECTOR_LENGTH];
 
-    elem_type = build_elem_type(ctx, type);
+    elem_type = rc_build_elem_type(ctx, type);
 
     if (type.floating) {
         elems[0] = LLVMConstReal(elem_type, 1.0);
@@ -178,8 +159,10 @@ void
 rc_build_context_init(struct rc_build_context *bld, struct rc_llvm_context *ctx, struct rc_type type) {
     bld->type = type;
     bld->int_elem_type = LLVMIntTypeInContext(ctx->context, type.width);
+    bld->rc = ctx;
+
     if (type.floating)
-        bld->elem_type = build_elem_type(ctx, type);
+        bld->elem_type = rc_build_elem_type(ctx, type);
     else
         bld->elem_type = bld->int_elem_type;
 
