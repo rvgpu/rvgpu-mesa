@@ -19,6 +19,7 @@ struct rc_nir_context {
 
     struct hash_table *defs;
     struct hash_table *regs;
+    struct hash_table *vars;
 
     struct rc_build_context base;
     struct rc_build_context uint_bld;
@@ -121,6 +122,9 @@ static bool visit_intrinsic(struct rc_nir_context *ctx, nir_intrinsic_instr *ins
         case nir_intrinsic_load_vertex_id:
             printf("nir: load vertex id \n");
             result[0] = ctx->abi.vertex_id;
+            break;
+        case nir_intrinsic_store_deref:
+            printf("nir: store deref \n");
             break;
         default:
             fprintf(stdout, "Unknown intrinsic: ");
@@ -537,6 +541,29 @@ visit_alu(struct rc_nir_context *ctx, const nir_alu_instr *instr) {
     assign_alu_dest(ctx, &instr->dest, result);
 }
 
+static void
+assign_ssa(struct rc_nir_context *ctx, int idx, LLVMValueRef ptr)
+{
+    ctx->ssa_defs[idx] = ptr;
+}
+
+static void visit_deref(struct rc_nir_context *ctx, nir_deref_instr *instr) {
+    if (!nir_deref_mode_is_one_of(instr, nir_var_mem_shared | nir_var_mem_global)) {
+        return;
+    }
+    LLVMValueRef result = NULL;
+    switch(instr->deref_type) {
+        case nir_deref_type_var: {
+            struct hash_entry *entry = _mesa_hash_table_search(ctx->vars, instr->var);
+            result = (LLVMValueRef)entry->data;
+            break;
+        }
+        default:
+            unreachable("unexpected alu type");
+    }
+    assign_ssa(ctx, instr->dest.ssa.index, result);
+}
+
 static bool visit_block(struct rc_nir_context *ctx, nir_block *block) {
 
     nir_foreach_instr(instr, block)
@@ -556,8 +583,8 @@ static bool visit_block(struct rc_nir_context *ctx, nir_block *block) {
                     return false;
                 break;
             case nir_instr_type_deref:
-                assert(!nir_deref_mode_is_one_of(nir_instr_as_deref(instr),
-                                                 nir_var_mem_shared | nir_var_mem_global));
+                printf("nir: deref \n");
+                visit_deref(ctx, nir_instr_as_deref(instr));
                 break;
             default:
                 fprintf(stdout, "Unknown NIR instr type: ");
@@ -678,6 +705,7 @@ bool rc_nir_translate(struct rc_llvm_context *rc, struct nir_shader *nir) {
 
     ctx.defs = _mesa_hash_table_create(NULL, _mesa_hash_pointer, _mesa_key_pointer_equal);
     ctx.ssa_defs = (LLVMValueRef *) calloc(func->impl->ssa_alloc, sizeof(LLVMValueRef));
+    ctx.vars = _mesa_hash_table_create(NULL, _mesa_hash_pointer,_mesa_key_pointer_equal);
 
     ctx.regs = _mesa_hash_table_create(NULL, _mesa_hash_pointer, _mesa_key_pointer_equal);
     nir_foreach_register(reg, &func->impl->registers)
@@ -693,6 +721,7 @@ bool rc_nir_translate(struct rc_llvm_context *rc, struct nir_shader *nir) {
     free(ctx.ssa_defs);
     ralloc_free(ctx.defs);
     ralloc_free(ctx.regs);
+    ralloc_free(ctx.vars);
 
     return true;
 }
