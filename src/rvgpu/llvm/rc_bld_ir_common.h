@@ -24,51 +24,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-
-#ifndef RC_LLVM_BUILD_H__
-#define RC_LLVM_BUILD_H__
-
+#ifndef RVGPU_MESA_RC_BLD_IR_COMMON_H
+#define RVGPU_MESA_RC_BLD_IR_COMMON_H
+#include <llvm-c/Core.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define MAX_VECTOR_WIDTH 32
-#define MAX_VECTOR_LENGTH (MAX_VECTOR_WIDTH / 8)
-#define WRITE_MASK 0x1
-
-struct rc_llvm_pointer {
-   union {
-      LLVMValueRef value;
-      LLVMValueRef v;
-   };
-   /* Doesn't support complex types (pointer to pointer to etc...),
-    * but this isn't a problem since there's no place where this
-    * would be required.
-    */
-   union {
-      LLVMTypeRef pointee_type;
-      LLVMTypeRef t;
-   };
-}; 
-
-struct rc_llvm_context {
-   LLVMContextRef context;
-   LLVMModuleRef module;
-   LLVMBuilderRef builder;
-
-   LLVMTypeRef voidt;
-
-   struct rc_llvm_pointer main_function;
+struct rc_exec_mask {
+    struct rc_build_context *bld;
+    LLVMValueRef exec_mask;
 };
 
-void rc_llvm_context_init(struct rc_llvm_context *ctx, struct rc_llvm_compiler *compiler);
+void rc_exec_mask_store(struct rc_exec_mask *mask,
+                        struct rc_build_context *bld_store,
+                        LLVMValueRef val,
+                        LLVMValueRef dst_ptr);
 
-struct rc_llvm_pointer rc_build_main(struct rc_llvm_context *ctx);
-
-void rc_build_context_init(struct rc_build_context *bld, struct rc_llvm_context *ctx, struct rc_type type);
+void rc_exec_mask_init(struct rc_exec_mask *mask, struct rc_build_context *bld);
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif
+#endif //RVGPU_MESA_RC_BLD_IR_COMMON_H

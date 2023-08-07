@@ -1,9 +1,13 @@
 #include <llvm-c/Core.h>
 #include "nir/nir.h"
+#include "nir/nir_deref.h"
 #include "rc_nir_to_llvm.h"
 #include "rc_build_type.h"
 #include "rc_llvm_build_arit.h"
+#include "rc_bld_flow.h"
 
+#define NUM_CHANNELS 4 // same with TGSI_NUM_CHANNELS
+#define MAX_SHADER_OUTPUTS 80  //same with PIPE_MAX_SHADER_OUTPUTS
 struct rc_shader_abi {
     LLVMValueRef vertex_id;
 };
@@ -12,6 +16,7 @@ struct rc_nir_context {
     struct rc_llvm_context rc;
     struct rc_shader_abi abi;
     LLVMValueRef *ssa_defs;
+    LLVMValueRef outputs[MAX_SHADER_OUTPUTS][NUM_CHANNELS];
 
     gl_shader_stage stage;
 
@@ -115,6 +120,227 @@ static void assign_dest(struct rc_nir_context *ctx, const nir_dest *dest, LLVMVa
         assign_reg(ctx, &dest->reg, WRITE_MASK, vals);
 }
 
+static LLVMValueRef
+cast_type(struct rc_nir_context *ctx, LLVMValueRef val,
+          nir_alu_type alu_type, unsigned bit_size) {
+    LLVMBuilderRef builder = ctx->rc.builder;
+    switch (alu_type) {
+        case nir_type_float:
+            switch (bit_size) {
+                case 16:
+                    return LLVMBuildBitCast(builder, val, ctx->half_bld.vec_type, "");
+                case 32:
+                    return LLVMBuildBitCast(builder, val, ctx->base.vec_type, "");
+                case 64:
+                    return LLVMBuildBitCast(builder, val, ctx->dbl_bld.vec_type, "");
+                default:
+                    assert(0);
+                    break;
+            }
+            break;
+        case nir_type_int:
+            switch (bit_size) {
+                case 8:
+                    return LLVMBuildBitCast(builder, val, ctx->int8_bld.vec_type, "");
+                case 16:
+                    return LLVMBuildBitCast(builder, val, ctx->int16_bld.vec_type, "");
+                case 32:
+                    return LLVMBuildBitCast(builder, val, ctx->int_bld.vec_type, "");
+                case 64:
+                    return LLVMBuildBitCast(builder, val, ctx->int64_bld.vec_type, "");
+                default:
+                    assert(0);
+                    break;
+            }
+            break;
+        case nir_type_uint:
+            switch (bit_size) {
+                case 8:
+                    return LLVMBuildBitCast(builder, val, ctx->uint8_bld.vec_type, "");
+                case 16:
+                    return LLVMBuildBitCast(builder, val, ctx->uint16_bld.vec_type, "");
+                case 1:
+                case 32:
+                    return LLVMBuildBitCast(builder, val, ctx->uint_bld.vec_type, "");
+                case 64:
+                    return LLVMBuildBitCast(builder, val, ctx->uint64_bld.vec_type, "");
+                default:
+                    assert(0);
+                    break;
+            }
+            break;
+        case nir_type_uint32:
+            return LLVMBuildBitCast(builder, val, ctx->uint_bld.vec_type, "");
+        default:
+            return val;
+    }
+    return NULL;
+}
+
+static void get_deref_offset(struct rc_nir_context *ctx, nir_deref_instr *instr,
+                             bool vs_in, unsigned *vertex_index_out,
+                             LLVMValueRef *vertex_index_ref,
+                             unsigned *const_out, LLVMValueRef *indir_out) {
+    nir_variable *var = nir_deref_instr_get_variable(instr);
+    nir_deref_path path;
+    unsigned idx_lvl = 1;
+
+    nir_deref_path_init(&path, instr, NULL);
+
+    if ((vertex_index_out != NULL) || (vertex_index_ref != NULL)) {
+        if (vertex_index_ref) {
+            *vertex_index_ref = get_src(ctx, path.path[idx_lvl]->arr.index);
+            if (vertex_index_out)
+                *vertex_index_out = 0;
+        } else {
+            *vertex_index_out = nir_src_as_uint(path.path[idx_lvl]->arr.index);
+        }
+        ++idx_lvl;
+    }
+    uint32_t const_offset = 0;
+    LLVMValueRef offset = NULL;
+
+    if (var->data.compact && nir_src_is_const(instr->arr.index)) {
+        assert(instr->deref_type == nir_deref_type_array);
+        const_offset = nir_src_as_uint(instr->arr.index);
+        goto out;
+    }
+
+    for (; path.path[idx_lvl]; ++idx_lvl) {
+        const struct glsl_type *parent_type = path.path[idx_lvl - 1]->type;
+        if (path.path[idx_lvl]->deref_type == nir_deref_type_struct) {
+            unsigned index = path.path[idx_lvl]->strct.index;
+
+            for (unsigned i = 0; i < index; i++) {
+                const struct glsl_type *ft = glsl_get_struct_field(parent_type, i);
+                const_offset += glsl_count_attribute_slots(ft, vs_in);
+            }
+        }else if (path.path[idx_lvl]->deref_type == nir_deref_type_array) {
+            unsigned size = glsl_count_attribute_slots(path.path[idx_lvl]->type, vs_in);
+            if (nir_src_is_const(path.path[idx_lvl]->arr.index)) {
+                const_offset += nir_src_comp_as_int(path.path[idx_lvl]->arr.index, 0) * size;
+            } else {
+                LLVMValueRef idx_src = get_src(ctx, path.path[idx_lvl]->arr.index);
+                idx_src = cast_type(ctx, idx_src, nir_type_uint, 32);
+                LLVMValueRef array_off = rc_build_mul(&ctx->uint_bld, rc_build_const_int_vec(&ctx->rc, ctx->base.type, size),
+                                                      idx_src);
+                if (offset) {
+                    offset = rc_build_add(&ctx->uint_bld, offset, array_off);
+                } else {
+                    offset = array_off;
+                }
+            }
+        } else {
+            unreachable("Uhandled deref type in get_deref_instr_offset");
+        }
+    }
+out:
+    nir_deref_path_finish(&path);
+
+    if (const_offset && offset)
+        offset = LLVMBuildAdd(ctx->rc.builder, offset,
+                              rc_build_const_int_vec(ctx->base.rc, ctx->uint_bld.type, const_offset),
+                              "");
+    *const_out = const_offset;
+    *indir_out = offset;
+}
+
+static void store_chan(struct rc_nir_context *ctx, nir_variable_mode deref_mode,
+                       unsigned bit_size, unsigned location, unsigned comp,
+                       unsigned chan, LLVMValueRef dst) {
+    if (bit_size == 64) {
+        chan *= 2;
+        chan += comp;
+        if (chan >= 4) {
+            chan -= 4;
+            location++;
+        }
+        //store_64bit_chan(ctx, ctx->outputs[location][chan],
+         //                ctx->outputs[location][chan + 1], dst);
+    } else {
+        dst = LLVMBuildBitCast(ctx->rc.builder, dst, ctx->base.vec_type, "");
+        LLVMBuildStore(ctx->rc.builder, dst, ctx->outputs[location][chan + comp]);
+    }
+}
+
+static void store_var(struct rc_nir_context *ctx, nir_variable_mode deref_mode,
+                      unsigned num_components,  unsigned bit_size,
+                      nir_variable *var, unsigned writemask,
+                      LLVMValueRef indir_vertex_index, unsigned const_index,
+                      LLVMValueRef indir_index, LLVMValueRef dst) {
+    unsigned location = var->data.driver_location;
+    unsigned comp = var->data.location_frac;
+
+    switch (deref_mode) {
+        case nir_var_shader_out: {
+            if (ctx->stage == MESA_SHADER_FRAGMENT) {
+                if (var->data.location == FRAG_RESULT_STENCIL) {
+                    comp = 1;
+                } else if (var->data.location == FRAG_RESULT_DEPTH) {
+                    comp = 2;
+                }
+            }
+            if (var->data.compact) {
+                location += const_index / 4;
+                comp += const_index % 4;
+                const_index = 0;
+            }
+
+            for (unsigned chan = 0; chan < num_components; chan++) {
+                if (writemask & (1u << chan)) {
+                    LLVMValueRef chan_val = (num_components == 1) ? dst :
+                                            LLVMBuildExtractValue(ctx->rc.builder, dst, chan, "");
+                    //if (bld->tcs_iface){
+                        //TODO
+                   // } else {
+                        store_chan(ctx, deref_mode, bit_size, location + const_index, comp, chan, chan_val);
+                   // }
+                }
+            }
+        }
+            break;
+        default:
+            break;
+    }
+}
+
+static bool compact_array_index_oob(struct rc_nir_context *ctx,  nir_variable *var, const uint32_t index) {
+    auto type = var->type;
+    if (nir_is_arrayed_io(var, ctx->stage)) {
+        assert(glsl_type_is_array(type));
+        type = glsl_get_array_element(type);
+    }
+    return index >= glsl_get_length(type);
+}
+
+static void visit_store_var(struct rc_nir_context *ctx, nir_intrinsic_instr *instr) {
+    nir_deref_instr *deref = nir_instr_as_deref(instr->src[0].ssa->parent_instr);
+    nir_variable *var = nir_deref_instr_get_variable(deref);
+    assert(util_bitcount(deref->modes) == 1);
+    nir_variable_mode mode = deref->modes;
+    int writemask = instr->const_index[0];
+    unsigned bit_size = nir_src_bit_size(instr->src[1]);
+    LLVMValueRef src = get_src(ctx, instr->src[1]);
+
+    unsigned const_index = 0;
+    LLVMValueRef indir_index, indir_vertex_index = NULL;
+
+    if (var) {
+        bool tsc_out = (ctx->stage == MESA_SHADER_TESS_CTRL) &&
+                (var->data.mode == nir_var_shader_out) &&
+                !var->data.patch;
+        get_deref_offset(ctx, deref, false, NULL,
+                         tsc_out ? &indir_vertex_index : NULL,
+                         &const_index, &indir_index);
+        if (var->data.compact && compact_array_index_oob(ctx, var, const_index)) {
+            return;
+        }
+    }
+    store_var(ctx, mode, instr->num_components, bit_size,
+              var, writemask, indir_vertex_index, const_index,
+              indir_index, src);
+}
+
 static bool visit_intrinsic(struct rc_nir_context *ctx, nir_intrinsic_instr *instr) {
     LLVMValueRef result[NIR_MAX_VEC_COMPONENTS] = {0};
 
@@ -125,6 +351,7 @@ static bool visit_intrinsic(struct rc_nir_context *ctx, nir_intrinsic_instr *ins
             break;
         case nir_intrinsic_store_deref:
             printf("nir: store deref \n");
+            visit_store_var(ctx, instr);
             break;
         default:
             fprintf(stdout, "Unknown intrinsic: ");
@@ -221,64 +448,6 @@ do_alu_action(struct rc_nir_context *ctx, const nir_alu_instr *instr,
             break;
     }
     return result;
-}
-
-
-static LLVMValueRef
-cast_type(struct rc_nir_context *ctx, LLVMValueRef val,
-          nir_alu_type alu_type, unsigned bit_size) {
-    LLVMBuilderRef builder = ctx->rc.builder;
-    switch (alu_type) {
-        case nir_type_float:
-            switch (bit_size) {
-                case 16:
-                    return LLVMBuildBitCast(builder, val, ctx->half_bld.vec_type, "");
-                case 32:
-                    return LLVMBuildBitCast(builder, val, ctx->base.vec_type, "");
-                case 64:
-                    return LLVMBuildBitCast(builder, val, ctx->dbl_bld.vec_type, "");
-                default:
-                    assert(0);
-                    break;
-            }
-            break;
-        case nir_type_int:
-            switch (bit_size) {
-                case 8:
-                    return LLVMBuildBitCast(builder, val, ctx->int8_bld.vec_type, "");
-                case 16:
-                    return LLVMBuildBitCast(builder, val, ctx->int16_bld.vec_type, "");
-                case 32:
-                    return LLVMBuildBitCast(builder, val, ctx->int_bld.vec_type, "");
-                case 64:
-                    return LLVMBuildBitCast(builder, val, ctx->int64_bld.vec_type, "");
-                default:
-                    assert(0);
-                    break;
-            }
-            break;
-        case nir_type_uint:
-            switch (bit_size) {
-                case 8:
-                    return LLVMBuildBitCast(builder, val, ctx->uint8_bld.vec_type, "");
-                case 16:
-                    return LLVMBuildBitCast(builder, val, ctx->uint16_bld.vec_type, "");
-                case 1:
-                case 32:
-                    return LLVMBuildBitCast(builder, val, ctx->uint_bld.vec_type, "");
-                case 64:
-                    return LLVMBuildBitCast(builder, val, ctx->uint64_bld.vec_type, "");
-                default:
-                    assert(0);
-                    break;
-            }
-            break;
-        case nir_type_uint32:
-            return LLVMBuildBitCast(builder, val, ctx->uint_bld.vec_type, "");
-        default:
-            return val;
-    }
-    return NULL;
 }
 
 void assign_ssa_dest(struct rc_nir_context *ctx, const nir_ssa_def *ssa,
@@ -430,7 +599,7 @@ static LLVMValueRef load_reg(struct rc_nir_context *ctx, struct rc_build_context
         reg_storage = LLVMBuildBitCast(ctx->rc.builder, reg_storage, LLVMPointerType(reg_bld->elem_type, 0), "");
 
         for (auto i = 0; i < nc; i++) {
-            LLVMValueRef indirect_offset = get_soa_array_offsets(&ctx->uint_bld, indirect_val, nc, i, false);
+            //LLVMValueRef indirect_offset = get_soa_array_offsets(&ctx->uint_bld, indirect_val, nc, i, false);
             //vals[i] = build_gather(ctx, reg_bld, reg_bld->elem_type,reg_storage, indirect_offset, NULL, NULL);
 
             vals[i] = LLVMBuildLoad2(ctx->rc.builder, reg_bld->vec_type,
@@ -668,6 +837,35 @@ static LLVMValueRef build_alloca(struct rc_llvm_context *rc, LLVMTypeRef type, c
     return res;
 }
 
+static void init_var_slots(struct rc_nir_context *ctx, nir_variable *var, unsigned sc) {
+    unsigned slots = glsl_count_attribute_slots(var->type, false) * 4;
+
+    for (unsigned comp = sc; comp < slots + sc; comp++) {
+        auto this_loc = var->data.driver_location + (comp / 4);
+        auto this_chan = comp % 4;
+
+        if (!ctx->outputs[this_loc][this_chan]) {
+            ctx->outputs[this_loc][this_chan] = rc_build_alloca(ctx->base.rc, ctx->base.vec_type, "output");
+        }
+    }
+}
+
+static void var_decl(struct rc_nir_context *ctx, struct nir_variable *var) {
+    unsigned sc = var->data.location_frac;
+    switch (var->data.mode) {
+        case nir_var_shader_out:{
+            if (ctx->stage == MESA_SHADER_FRAGMENT) {
+                if (var->data.location == FRAG_RESULT_STENCIL) {
+                    sc = 1;
+                } else if (var->data.location == FRAG_RESULT_DEPTH) {
+                    sc = 2;
+                }
+            }
+            init_var_slots(ctx, var, sc);
+        }
+    }
+}
+
 bool rc_nir_translate(struct rc_llvm_context *rc, struct nir_shader *nir) {
     struct rc_nir_context ctx;
     memset(&ctx, 0, sizeof ctx);
@@ -682,20 +880,24 @@ bool rc_nir_translate(struct rc_llvm_context *rc, struct nir_shader *nir) {
 
     if (ctx.stage == MESA_SHADER_VERTEX) {
         ctx.abi.vertex_id = LLVMGetParam(rc->main_function.value, 1);
+        //ctx.abi.io = LLVMGetParam(rc->main_function.value, 0);
         LLVMSetValueName(ctx.abi.vertex_id, "vertex_id");
 
         struct rc_type vs_type;
         memset(&vs_type, 0, sizeof vs_type);
-        vs_type.floating = TRUE;
-        vs_type.sign = TRUE;
-        vs_type.norm = FALSE;
-        vs_type.width = 32;
-        vs_type.length = MAX_VECTOR_LENGTH;
+        vs_type.floating = TRUE; /* floating point values */
+        vs_type.sign = TRUE;     /* values are signed */
+        vs_type.norm = FALSE;    /* values are not limited to [0,1] or [-1,1] */
+        vs_type.width = 32;      /* 32-bit float */
+        vs_type.length = MAX_VECTOR_WIDTH / 32;
 
         rc_build_context_init(&ctx.base, rc, vs_type);
         rc_build_context_init(&ctx.uint_bld, rc, rc_uint_type(vs_type));
         rc_build_context_init(&ctx.int_bld, rc, rc_int_type(vs_type));
     }
+
+    nir_foreach_shader_out_variable(variable, nir)
+        var_decl(&ctx, variable);
 
     ctx.rc = *rc;
     ctx.stage = nir->info.stage;

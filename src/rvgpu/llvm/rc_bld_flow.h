@@ -25,50 +25,16 @@
  * SOFTWARE.
  */
 
-#ifndef RC_LLVM_BUILD_H__
-#define RC_LLVM_BUILD_H__
+#ifndef RVGPU_MESA_RC_BLD_FLOW_H
+#define RVGPU_MESA_RC_BLD_FLOW_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+struct rc_llvm_context;
 
-#define MAX_VECTOR_WIDTH 32
-#define MAX_VECTOR_LENGTH (MAX_VECTOR_WIDTH / 8)
-#define WRITE_MASK 0x1
-
-struct rc_llvm_pointer {
-   union {
-      LLVMValueRef value;
-      LLVMValueRef v;
-   };
-   /* Doesn't support complex types (pointer to pointer to etc...),
-    * but this isn't a problem since there's no place where this
-    * would be required.
-    */
-   union {
-      LLVMTypeRef pointee_type;
-      LLVMTypeRef t;
-   };
-}; 
-
-struct rc_llvm_context {
-   LLVMContextRef context;
-   LLVMModuleRef module;
-   LLVMBuilderRef builder;
-
-   LLVMTypeRef voidt;
-
-   struct rc_llvm_pointer main_function;
-};
-
-void rc_llvm_context_init(struct rc_llvm_context *ctx, struct rc_llvm_compiler *compiler);
-
-struct rc_llvm_pointer rc_build_main(struct rc_llvm_context *ctx);
-
-void rc_build_context_init(struct rc_build_context *bld, struct rc_llvm_context *ctx, struct rc_type type);
-
+LLVMValueRef rc_build_alloca(struct rc_llvm_context *ctx, LLVMTypeRef type, const char *name);
 #ifdef __cplusplus
 }
 #endif
-
-#endif
+#endif //RVGPU_MESA_RC_BLD_FLOW_H
