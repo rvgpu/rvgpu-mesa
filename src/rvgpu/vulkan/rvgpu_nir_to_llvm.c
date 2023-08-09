@@ -65,7 +65,9 @@ void rvgpu_llvm_compile_shader(struct nir_shader *shader) {
    char *str = LLVMPrintModuleToString(llvm_module);
    printf("%s", str);
 
-#if 0
+#if 1
+    printf("[LLVMIR TO Binary]\n");
+
    char *elf_buffer = NULL;
    size_t elf_size = 0;
    LLVMContextRef llvm_ctx;

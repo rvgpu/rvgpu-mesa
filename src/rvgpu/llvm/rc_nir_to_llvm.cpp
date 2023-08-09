@@ -49,7 +49,6 @@ static bool visit_load_const(struct rc_nir_context *ctx, const nir_load_const_in
         switch (instr->def.bit_size) {
             case 32:
                 values[i] = LLVMConstInt(element_type, instr->value[i].u32, false);
-                LLVMBuildRet(ctx->rc.builder, values[i]);
                 break;
             default:
                 fprintf(stderr, "unsupported nir load_const bit_size: %d\n", instr->def.bit_size);
@@ -388,8 +387,18 @@ get_alu_src(struct rc_nir_context *ctx, nir_alu_src src, unsigned num_components
             break;
         }
     }
-    if (need_swizzle) {
-        printf("alu src need to swizzle \n");
+    if (need_swizzle || (num_components != src_components)) {
+        if ((src_components > 1) && (num_components == 1)) {
+            value = LLVMBuildExtractValue(ctx->rc.builder, value, src.swizzle[0], "");
+        } else if ((src_components == 1) && (num_components > 1)) {
+            printf("TODO: get src number components > 1 \n");
+        }else {
+            LLVMValueRef arr = LLVMGetUndef(LLVMArrayType(LLVMTypeOf(LLVMBuildExtractValue(ctx->rc.builder, value, 0, "")), num_components));
+            for (unsigned i = 0; i < num_components; i++) {
+                arr = LLVMBuildInsertValue(ctx->rc.builder, arr, LLVMBuildExtractValue(ctx->rc.builder, value, src.swizzle[i], ""), i, "");
+            }
+            value = arr;
+        }
     }
     return value;
 }
@@ -683,7 +692,17 @@ visit_alu(struct rc_nir_context *ctx, const nir_alu_instr *instr) {
         instr->op == nir_op_vec2 ||
         instr->op == nir_op_vec8 ||
         instr->op == nir_op_vec16) {
-        //TODO: see lp_bld_nir.c visit_alu function
+        if (        instr->op == nir_op_vec3 ||
+                    instr->op == nir_op_vec2 ||
+                    instr->op == nir_op_vec8 ||
+                    instr->op == nir_op_vec16) {
+            printf("TODO: alu vec op \n");
+        }
+        for (unsigned i = 0; i < nir_op_infos[instr->op].num_inputs; i++) {
+            result[i] = cast_type(ctx, src[i],
+                                  nir_op_infos[instr->op].input_types[i],
+                                  src_bit_size[i]);
+        }
 
     } else if (instr->op == nir_op_fsum4 ||
                instr->op == nir_op_fsum3 ||
@@ -776,10 +795,11 @@ static bool visit_cf_list(struct rc_nir_context *ctx, struct exec_list *list) {
                 }
                 break;
             default:
+                printf("unknown node type \n");
                 return false;
         }
     }
-    return false;
+    return true;
 }
 
 static struct rc_type rc_uint_type(struct rc_type type) {
@@ -917,8 +937,12 @@ bool rc_nir_translate(struct rc_llvm_context *rc, struct nir_shader *nir) {
         _mesa_hash_table_insert(ctx.regs, reg, reg_alloc);
     }
 
-    if (!visit_cf_list(&ctx, &func->impl->body))
+    if (!visit_cf_list(&ctx, &func->impl->body)) {
         return false;
+    }
+    // add the terminator inst at the end of block
+    LLVMValueRef ret = LLVMConstInt(LLVMInt32TypeInContext(rc->context), 1, 0);
+    LLVMBuildRet(ctx.rc.builder, ret);
 
     free(ctx.ssa_defs);
     ralloc_free(ctx.defs);

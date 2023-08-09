@@ -32,7 +32,6 @@
 void *
 rvgpu_shader_compile(struct rvgpu_device *device, struct rvgpu_shader *shader, struct nir_shader *nir)
 {
-   printf("[NIR TO Binary]\n");
    nir_print_shader(nir, stdout);
  
    rc_init_llvm_once();
