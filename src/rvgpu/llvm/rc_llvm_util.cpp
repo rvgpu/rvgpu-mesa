@@ -29,6 +29,7 @@
 #include <cstring>
 
 #include <llvm/Analysis/TargetLibraryInfo.h>
+#include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/MC/MCSubtargetInfo.h>
@@ -40,11 +41,10 @@
 #include <llvm-c/Target.h>
 #include <llvm-c/Core.h>
 #include <c11/threads.h>
-
 #include "rc_llvm_util.h"
 
 bool rc_is_llvm_processor_supported(LLVMTargetMachineRef tm, const char *processor)
-{     
+{
    llvm::TargetMachine *TM = reinterpret_cast<llvm::TargetMachine *>(tm);
    return TM->getMCSubtargetInfo()->isCPUStringValid(processor);
 }
@@ -128,18 +128,21 @@ struct rc_compiler_passes {
 
 struct rc_compiler_passes *rc_create_llvm_passes(LLVMTargetMachineRef tm)
 {
-   struct rc_compiler_passes *p = new rc_compiler_passes();
-   if (!p)
-      return NULL;
+    struct rc_compiler_passes *p = new rc_compiler_passes();
+    if (!p)
+        return NULL;
 
-   llvm::TargetMachine *TM = reinterpret_cast<llvm::TargetMachine *>(tm);
+    llvm::TargetMachine *TM = reinterpret_cast<llvm::TargetMachine *>(tm);
+    p->passmgr.add(createTargetTransformInfoWrapperPass(TM->getTargetIRAnalysis()));
+    std::unique_ptr<llvm::TargetLibraryInfoImpl> TLII(new llvm::TargetLibraryInfoImpl(TM->getTargetTriple()));
+    p->passmgr.add(new llvm::TargetLibraryInfoWrapperPass(*TLII));
 
-   if (TM->addPassesToEmitFile(p->passmgr, p->ostream, nullptr, llvm::CGFT_ObjectFile)) {
-      fprintf(stderr, "amd: TargetMachine can't emit a file of this type!\n");
-      delete p;
-      return NULL;
-   }
-   return p;
+    if (TM->addPassesToEmitFile(p->passmgr, p->ostream, nullptr, llvm::CGFT_ObjectFile)) {
+       fprintf(stderr, "amd: TargetMachine can't emit a file of this type!\n");
+       delete p;
+       return NULL;
+    }
+    return p;
 }
 
 void rc_destroy_llvm_passes(struct rc_compiler_passes *p)
@@ -180,7 +183,7 @@ static LLVMTargetMachineRef rc_create_target_machine(LLVMCodeGenOptLevel level, 
 
    LLVMTargetMachineRef tm =
       LLVMCreateTargetMachine(target, triple, name, "", level,
-                              LLVMRelocDefault, LLVMCodeModelDefault);
+                              LLVMRelocDefault, LLVMCodeModelMedium);
 
    if (!rc_is_llvm_processor_supported(tm, name)) {
       LLVMDisposeTargetMachine(tm);
